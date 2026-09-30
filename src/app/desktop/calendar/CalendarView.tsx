@@ -336,23 +336,32 @@ function CalendarBody({
           ))}
           {monthCells(calendarMonth).map((date, i) => {
             if (!date)
-              return <div key={`pad-${i}`} className="min-h-14 rounded-[9px] border border-line bg-[#FAFCFD] sm:min-h-[90px]" />;
+              return <div key={`pad-${i}`} className="min-h-[68px] rounded-[9px] border border-line bg-[#FAFCFD] sm:min-h-[90px]" />;
             const entries = entriesOf(date);
             const selected = date === selectedDate;
             return (
               <div
                 key={date}
                 onClick={() => onDateClick(date)}
-                className={`min-h-14 min-w-0 cursor-pointer rounded-[9px] border px-1 py-1 hover:border-navy sm:min-h-[90px] sm:px-[7px] sm:py-1.5 ${
+                className={`min-h-[68px] min-w-0 cursor-pointer rounded-[9px] border px-[3px] py-1 hover:border-navy sm:min-h-[90px] sm:px-[7px] sm:py-1.5 ${
                   selected ? "border-navy bg-navy-soft shadow-[inset_0_0_0_1px_var(--color-navy)]" : "border-line bg-white"
                 }`}
               >
-                <div className="text-center text-[13px] font-bold sm:text-left">{Number(date.slice(8))}</div>
-                {/* 手機：最多 4 個彩色圓點，點日期後在下方看詳情 */}
-                <div className="mt-1 flex flex-wrap justify-center gap-[3px] sm:hidden">
-                  {entries.slice(0, 4).map((e) => (
-                    <span key={e.id} className="size-1.5 rounded-full" style={{ background: entryColor(e) }} />
+                <div className="text-[13px] font-bold">{Number(date.slice(8))}</div>
+                {/* 手機：跟舊版一樣用彩色色條顯示名稱，格子窄所以字縮小、最多 2 條 */}
+                <div className="sm:hidden">
+                  {entries.slice(0, 2).map((e) => (
+                    <div
+                      key={e.id}
+                      className="mt-0.5 overflow-hidden rounded-[3px] px-[2px] text-[9px] leading-[14px] font-bold whitespace-nowrap text-white"
+                      style={{ background: entryColor(e) }}
+                    >
+                      {e.title}
+                    </div>
                   ))}
+                  {entries.length > 2 && (
+                    <div className="text-center text-[9px] leading-3 text-muted">+{entries.length - 2}</div>
+                  )}
                 </div>
                 {/* 平板／電腦：行程條 */}
                 <div className="hidden sm:block">
