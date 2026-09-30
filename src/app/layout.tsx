@@ -6,8 +6,8 @@ export const metadata: Metadata = {
     default: "個人工作台",
     template: "%s - 個人工作台",
   },
+  // 網站圖示用 app/favicon.ico、app/icon.png、app/apple-icon.png（Next.js 檔案慣例自動產生 <link>）
   manifest: "/manifest.json",
-  icons: { apple: "/icons/icon-180.png" },
 };
 
 export const viewport: Viewport = {
