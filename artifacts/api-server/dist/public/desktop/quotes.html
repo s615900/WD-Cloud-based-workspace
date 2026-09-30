@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>報價單 - 個人工作台</title>
+<meta name="theme-color" content="#0B3D5C">
+<link rel="stylesheet" href="/desktop/desktop.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside id="sidebar-root"></aside>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <h1>報價單</h1>
+        <p class="subtitle">對應 Ragic quotation-system/7</p>
+      </div>
+      <div class="page-actions">
+        <a class="btn btn-gold" id="new-btn" href="/desktop/quotes-new.html">+ 新增報價單</a>
+      </div>
+    </div>
+
+    <div class="card" id="lock-notice" style="display:none; text-align:center; padding:56px 24px;">
+      <div style="font-size:42px; margin-bottom:14px;">🔒</div>
+      <h2 style="margin:0 0 8px;">這個功能暫時鎖定</h2>
+      <p class="subtitle" style="margin:0;">接案商業功能目前暫停使用，資料不會讀取或異動</p>
+    </div>
+
+    <div class="card" id="data-card">
+      <div class="toolbar">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="quote-search" placeholder="搜尋報價單編號、專案名稱或客戶名稱">
+        </div>
+      </div>
+      <div id="quote-tabs"></div>
+      <div style="overflow-x: auto;">
+        <table class="data-table">
+          <thead>
+            <tr><th>報價單編號</th><th>報價日期</th><th>客戶</th><th>專案名稱</th><th>未稅金額</th><th>稅額</th><th>總金額含稅</th><th>付款狀態</th><th>已讀追蹤</th><th>線上簽署狀態</th><th></th></tr>
+          </thead>
+          <tbody id="table-body"><tr><td colspan="12" class="empty-hint">載入中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/desktop/common.js"></script>
+<script src="/desktop/nav.js" data-active="quotes"></script>
+<script>
+(function () {
+  var C = window.DesktopCommon;
+  var PAYMENT_STATUSES = ["未付款", "已付訂金", "部分付款", "已付款", "已取消"];
+  var COLSPAN = 11;
+
+  var allQuotes = [];
+  var payFilter = "all";
+  var searchTerm = "";
+  var searchInput = document.getElementById("quote-search");
+
+  async function load() {
+    var body = document.getElementById("table-body");
+    body.innerHTML = '<tr><td colspan="' + COLSPAN + '" class="empty-hint">載入中…</td></tr>';
+    try {
+      allQuotes = await C.apiFetch("/api/quotes");
+      renderTabs();
+      renderRows(filteredQuotes());
+    } catch (err) {
+      body.innerHTML = '<tr><td colspan="' + COLSPAN + '" class="empty-hint">無法載入（' + C.escapeHtml(err.message) + '）</td></tr>';
+    }
+  }
+
+  // 篩選邏輯對齊原型：先套用付款狀態分頁籤，再套用搜尋關鍵字（報價單編號／專案名稱／客戶名稱）。
+  function filteredQuotes() {
+    var rows = allQuotes;
+    if (payFilter !== "all") {
+      rows = rows.filter(function (q) { return (q.paymentStatus || "未付款") === payFilter; });
+    }
+    var term = searchTerm.trim().toLowerCase();
+    if (term) {
+      rows = rows.filter(function (q) {
+        return [q.quoteNumber, q.projectName, q.clientName].some(function (v) {
+          return (v || "").toLowerCase().indexOf(term) !== -1;
+        });
+      });
+    }
+    return rows;
+  }
+
+  function renderTabs() {
+    var tabsEl = document.getElementById("quote-tabs");
+    var counts = { all: allQuotes.length };
+    PAYMENT_STATUSES.forEach(function (s) {
+      counts[s] = allQuotes.filter(function (q) { return (q.paymentStatus || "未付款") === s; }).length;
+    });
+    var tabs = [["all", "全部"]].concat(PAYMENT_STATUSES.map(function (s) { return [s, s]; }));
+    tabsEl.innerHTML = '<div class="status-tabs">' + tabs.map(function (t) {
+      var key = t[0], label = t[1];
+      return '<div class="status-tab' + (payFilter === key ? " active" : "") + '" data-key="' + C.escapeHtml(key) + '">' +
+        C.escapeHtml(label) + '<span class="cnt">' + (counts[key] || 0) + '</span></div>';
+    }).join("") + '</div>';
+    tabsEl.querySelectorAll(".status-tab").forEach(function (el) {
+      el.addEventListener("click", function () {
+        payFilter = el.dataset.key;
+        renderTabs();
+        renderRows(filteredQuotes());
+      });
+    });
+  }
+
+  searchInput.addEventListener("input", function () {
+    searchTerm = searchInput.value;
+    renderRows(filteredQuotes());
+  });
+
+  // 整列可點擊進入這筆報價單的詳情頁（不只是「編輯」按鈕才有反應）；
+  // 編輯按鈕、傳送簽署連結按鈕另外處理自己的動作，用 stopPropagation 避免同時觸發整列的詳情頁導覽。
+  //
+  // 已讀追蹤／線上簽署狀態是兩個不同的 Ragic 欄位（分別對應「已讀時間」「簽署人+簽署時間」），
+  // 不要合併成同一欄。簽核狀態（Ragic 原生簽核流程）欄已依需求整欄移除，不在此表格顯示。
+  function renderRows(quotes) {
+    var body = document.getElementById("table-body");
+    if (allQuotes.length === 0) {
+      body.innerHTML = '<tr><td colspan="' + COLSPAN + '" class="empty-hint">尚無報價單</td></tr>';
+      return;
+    }
+    if (quotes.length === 0) {
+      body.innerHTML = '<tr><td colspan="' + COLSPAN + '" class="empty-hint">沒有符合的報價單</td></tr>';
+      return;
+    }
+    body.innerHTML = quotes.map(function (q) {
+      return '<tr class="quote-row" data-id="' + q.id + '" style="cursor:pointer;">' +
+        '<td><span class="id-chip mono">' + C.escapeHtml(q.quoteNumber || ("#" + q.id)) + '</span></td>' +
+        '<td>' + C.escapeHtml(q.quoteDate) + '</td>' +
+        '<td>' + C.escapeHtml(q.clientName || ("#" + q.clientId)) + '</td>' +
+        '<td>' + C.escapeHtml(q.projectName || "—") + '</td>' +
+        '<td>' + C.escapeHtml(q.untaxedAmount || "—") + '</td>' +
+        '<td>' + C.escapeHtml(q.taxAmount || "—") + '</td>' +
+        '<td style="font-weight:700;">' + C.escapeHtml(q.totalAmount || "—") + '</td>' +
+        '<td>' + C.paymentBadge(q.paymentStatus) + '</td>' +
+        '<td>' + C.readBadge(q.readAt) + '</td>' +
+        '<td>' + C.onlineSignBadge(q.signerName, q.signedAt) + '</td>' +
+        '<td style="white-space:nowrap;">' +
+          '<a class="btn btn-outline" href="/desktop/quotes-new.html?id=' + q.id + '" style="padding:5px 12px;font-size:12px;" onclick="event.stopPropagation()">編輯</a> ' +
+          '<button type="button" class="btn btn-outline sign-link-btn" data-id="' + q.id + '" style="padding:5px 12px;font-size:12px;">傳送簽署連結</button>' +
+        '</td>' +
+        '</tr>';
+    }).join("");
+
+    body.querySelectorAll(".quote-row").forEach(function (row) {
+      row.addEventListener("click", function () {
+        window.location.href = "/desktop/quotes-detail.html?id=" + row.dataset.id;
+      });
+    });
+
+    // 「傳送簽署連結」現在是產生我們自己客戶簽署頁的 token 連結（見 quote-sign.html），
+    // 不再是 promptRagicSign() 那套「跳去 Ragic 後台手動點開始簽核」的做法——
+    // 這個按鈕仍保留同名文字是因為對使用者來說行為意圖沒變（拿一條連結傳給客戶）。
+    body.querySelectorAll(".sign-link-btn").forEach(function (btn) {
+      btn.addEventListener("click", async function (event) {
+        event.stopPropagation();
+        btn.disabled = true;
+        try {
+          var result = await C.apiFetch("/api/quotes/" + btn.dataset.id + "/sign-link", { method: "POST" });
+          var url = window.location.origin + "/quote-sign.html?token=" + result.token;
+          window.prompt("請複製以下連結傳送給客戶（開啟連結免登入）：", url);
+        } catch (err) {
+          alert("產生連結失敗：" + err.message);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  C.getBusinessLocks().then(function (locks) {
+    if (C.applyBusinessLock(locks.quotes, { hideIds: ["new-btn", "data-card"] })) return;
+    load();
+  });
+})();
+</script>
+</body>
+</html>

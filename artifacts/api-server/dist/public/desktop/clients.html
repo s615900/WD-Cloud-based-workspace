@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>客戶資料 - 個人工作台</title>
+<meta name="theme-color" content="#0B3D5C">
+<link rel="stylesheet" href="/desktop/desktop.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside id="sidebar-root"></aside>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <h1>客戶資料</h1>
+        <p class="subtitle">對應 Ragic quotation-system/1</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-gold" id="new-btn">+ 新增客戶</button>
+      </div>
+    </div>
+
+    <div class="card" id="lock-notice" style="display:none; text-align:center; padding:56px 24px;">
+      <div style="font-size:42px; margin-bottom:14px;">🔒</div>
+      <h2 style="margin:0 0 8px;">這個功能暫時鎖定</h2>
+      <p class="subtitle" style="margin:0;">接案商業功能目前暫停使用，資料不會讀取或異動</p>
+    </div>
+
+    <div class="card" id="data-card">
+      <div class="toolbar">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="client-search" placeholder="搜尋客戶名稱、聯絡人、統編或電話">
+        </div>
+      </div>
+      <div style="overflow-x: auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>客戶編號</th><th>戶別</th><th>類型</th><th>客戶名稱</th><th>統一編號</th><th>聯絡人</th><th>電話</th><th>Email</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="table-body"><tr><td colspan="9" class="empty-hint">載入中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay hidden" id="modal-overlay">
+  <div class="modal-box">
+    <h2 id="modal-title">新增客戶</h2>
+    <form id="client-form">
+      <input type="hidden" id="client-id">
+
+      <div class="section-label">基本資料</div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>客戶類型<span class="required">*</span></label>
+          <select id="f-type">
+            <option value="B2B">B2B</option>
+            <option value="B2C">B2C</option>
+            <option value="學校">學校</option>
+            <option value="協會">協會</option>
+            <option value="品牌">品牌</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>戶別</label>
+          <select id="f-account-type">
+            <option value="一般戶">一般戶</option>
+            <option value="公司戶">公司戶</option>
+          </select>
+        </div>
+        <div class="form-field span-2">
+          <label>客戶名稱<span class="required">*</span></label>
+          <input type="text" id="f-name">
+        </div>
+        <div class="form-field">
+          <label>統一編號<span class="required" id="taxid-required" style="display:none;">*</span></label>
+          <input type="text" id="f-taxid" placeholder="8 碼數字，公司戶必填" maxlength="8">
+        </div>
+        <div class="form-field">
+          <label>負責人</label>
+          <input type="text" id="f-owner">
+        </div>
+      </div>
+
+      <div class="section-label">聯絡資訊</div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>聯絡人</label>
+          <input type="text" id="f-contact">
+        </div>
+        <div class="form-field">
+          <label>聯絡人電話</label>
+          <input type="text" id="f-contact-phone">
+        </div>
+        <div class="form-field">
+          <label>公司電話</label>
+          <input type="text" id="f-company-phone">
+        </div>
+        <div class="form-field">
+          <label>分機</label>
+          <input type="text" id="f-ext">
+        </div>
+        <div class="form-field">
+          <label>Email</label>
+          <input type="email" id="f-email">
+        </div>
+        <div class="form-field">
+          <label>即時通訊軟體</label>
+          <input type="text" id="f-im">
+        </div>
+        <div class="form-field">
+          <label>聯絡方式</label>
+          <select id="f-contact-method">
+            <option value="">（未選擇）</option>
+            <option value="LINE">LINE</option>
+            <option value="E-mail">E-mail</option>
+          </select>
+        </div>
+        <div class="form-field span-2">
+          <label>聯絡地址</label>
+          <input type="text" id="f-address">
+        </div>
+      </div>
+
+      <div class="section-label">付款資訊</div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>付款條件</label>
+          <select id="f-payment">
+            <option value="">（未選擇）</option>
+            <option value="現金">現金</option>
+            <option value="轉帳">轉帳</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>銀行帳號</label>
+          <input type="text" id="f-bank">
+        </div>
+      </div>
+
+      <div class="section-label">備註</div>
+      <div class="form-grid">
+        <div class="form-field span-2">
+          <textarea id="f-note"></textarea>
+        </div>
+      </div>
+      <p class="message" id="form-message"></p>
+      <div class="page-actions" style="margin-top: 16px; justify-content: flex-end;">
+        <button type="button" class="btn btn-outline" id="cancel-btn">取消</button>
+        <button type="submit" class="btn btn-primary" id="save-btn">儲存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/desktop/common.js"></script>
+<script src="/desktop/nav.js" data-active="clients"></script>
+<script>
+(function () {
+  var C = window.DesktopCommon;
+  var clients = [];
+
+  var overlay = document.getElementById("modal-overlay");
+  var form = document.getElementById("client-form");
+  var messageEl = document.getElementById("form-message");
+  var searchInput = document.getElementById("client-search");
+  var editIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
+  async function load() {
+    var body = document.getElementById("table-body");
+    body.innerHTML = '<tr><td colspan="9" class="empty-hint">載入中…</td></tr>';
+    try {
+      clients = await C.apiFetch("/api/clients");
+      renderTable();
+    } catch (err) {
+      body.innerHTML = '<tr><td colspan="9" class="empty-hint">無法載入（' + C.escapeHtml(err.message) + '）</td></tr>';
+    }
+  }
+
+  function renderTable() {
+    var body = document.getElementById("table-body");
+    var q = (searchInput.value || "").trim().toLowerCase();
+    var rows = clients.filter(function (c) {
+      if (!q) return true;
+      return [c.name, c.contact, c.taxId, c.contactPhone, c.companyPhone].some(function (v) {
+        return (v || "").toLowerCase().indexOf(q) !== -1;
+      });
+    });
+
+    if (clients.length === 0) {
+      body.innerHTML = '<tr><td colspan="9" class="empty-hint">尚無客戶資料</td></tr>';
+      return;
+    }
+    if (rows.length === 0) {
+      body.innerHTML = '<tr><td colspan="9" class="empty-hint">找不到符合的客戶</td></tr>';
+      return;
+    }
+
+    body.innerHTML = rows.map(function (c) {
+      var accountBadgeClass = c.accountType === '公司戶' ? 'badge badge-company' : 'badge badge-individual';
+      return '<tr>' +
+        '<td><span class="id-chip mono">' + C.escapeHtml(c.code || '—') + '</span></td>' +
+        '<td><span class="' + accountBadgeClass + '">' + C.escapeHtml(c.accountType || '一般戶') + '</span></td>' +
+        '<td><span class="badge">' + C.escapeHtml(c.type) + '</span></td>' +
+        '<td style="font-weight:700">' + C.escapeHtml(c.name) + '</td>' +
+        '<td>' + (c.taxId ? '<span class="mono">' + C.escapeHtml(c.taxId) + '</span>' : '<span style="color:var(--text-muted)">—</span>') + '</td>' +
+        '<td>' + C.escapeHtml(c.contact || '—') + '</td>' +
+        '<td>' + C.escapeHtml(c.contactPhone || c.companyPhone || '—') + '</td>' +
+        '<td>' + C.escapeHtml(c.email || '—') + '</td>' +
+        '<td><div class="row-actions"><button class="icon-btn" data-id="' + c.id + '" title="編輯">' + editIcon + '</button></div></td>' +
+        '</tr>';
+    }).join("");
+    body.querySelectorAll("button[data-id]").forEach(function (btn) {
+      btn.addEventListener("click", function () { openModal(Number(btn.dataset.id)); });
+    });
+  }
+
+  searchInput.addEventListener("input", renderTable);
+
+  var accountTypeSelect = document.getElementById("f-account-type");
+  var taxidRequiredMark = document.getElementById("taxid-required");
+  function updateTaxIdRequired() {
+    taxidRequiredMark.style.display = accountTypeSelect.value === "公司戶" ? "" : "none";
+  }
+  accountTypeSelect.addEventListener("change", updateTaxIdRequired);
+
+  function openModal(id) {
+    var c = id ? clients.find(function (x) { return x.id === id; }) : null;
+    document.getElementById("modal-title").textContent = c ? "編輯客戶" : "新增客戶";
+    document.getElementById("client-id").value = c ? c.id : "";
+    document.getElementById("f-type").value = c ? c.type : "B2B";
+    document.getElementById("f-account-type").value = c ? (c.accountType || "一般戶") : "一般戶";
+    document.getElementById("f-taxid").value = c ? c.taxId : "";
+    document.getElementById("f-name").value = c ? c.name : "";
+    document.getElementById("f-owner").value = c ? c.owner : "";
+    document.getElementById("f-contact").value = c ? c.contact : "";
+    document.getElementById("f-contact-phone").value = c ? c.contactPhone : "";
+    document.getElementById("f-company-phone").value = c ? c.companyPhone : "";
+    document.getElementById("f-ext").value = c ? c.ext : "";
+    document.getElementById("f-address").value = c ? c.address : "";
+    document.getElementById("f-email").value = c ? c.email : "";
+    document.getElementById("f-im").value = c ? c.im : "";
+    document.getElementById("f-contact-method").value = c ? c.contactMethod : "";
+    document.getElementById("f-payment").value = c ? c.paymentTerms : "";
+    document.getElementById("f-bank").value = c ? c.bankAccount : "";
+    document.getElementById("f-note").value = c ? c.note : "";
+    updateTaxIdRequired();
+    C.showMessage(messageEl, "");
+    overlay.classList.remove("hidden");
+  }
+
+  function closeModal() { overlay.classList.add("hidden"); }
+
+  document.getElementById("new-btn").addEventListener("click", function () { openModal(null); });
+  document.getElementById("cancel-btn").addEventListener("click", closeModal);
+  overlay.addEventListener("click", function (e) { if (e.target === overlay) closeModal(); });
+
+  form.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    var id = document.getElementById("client-id").value;
+    if (accountTypeSelect.value === "公司戶" && !/^\d{8}$/.test(document.getElementById("f-taxid").value.trim())) {
+      C.showMessage(messageEl, "公司戶請輸入正確的 8 碼統一編號", "error");
+      return;
+    }
+    var payload = {
+      type: document.getElementById("f-type").value,
+      accountType: document.getElementById("f-account-type").value,
+      taxId: document.getElementById("f-taxid").value.trim(),
+      name: document.getElementById("f-name").value.trim(),
+      owner: document.getElementById("f-owner").value.trim(),
+      contact: document.getElementById("f-contact").value.trim(),
+      contactPhone: document.getElementById("f-contact-phone").value.trim(),
+      companyPhone: document.getElementById("f-company-phone").value.trim(),
+      ext: document.getElementById("f-ext").value.trim(),
+      address: document.getElementById("f-address").value.trim(),
+      email: document.getElementById("f-email").value.trim(),
+      im: document.getElementById("f-im").value.trim(),
+      contactMethod: document.getElementById("f-contact-method").value,
+      paymentTerms: document.getElementById("f-payment").value,
+      bankAccount: document.getElementById("f-bank").value.trim(),
+      note: document.getElementById("f-note").value.trim(),
+    };
+
+    var saveBtn = document.getElementById("save-btn");
+    saveBtn.disabled = true;
+    C.showMessage(messageEl, "儲存中…");
+    try {
+      if (id) {
+        await C.apiFetch("/api/clients/" + id, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await C.apiFetch("/api/clients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+      closeModal();
+      load();
+    } catch (err) {
+      C.showMessage(messageEl, err.message || "儲存失敗", "error");
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  C.getBusinessLocks().then(function (locks) {
+    if (C.applyBusinessLock(locks.clients, { hideIds: ["new-btn", "data-card"] })) return;
+    load();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>合約確認 / 簽署</title>
+<meta name="theme-color" content="#0B3D5C">
+<style>
+  :root {
+    --navy: #0B3D5C;
+    --navy-2: #14567E;
+    --gold: #D8A54B;
+    --gold-dark: #B4823A;
+    --bg: #EEF3F6;
+    --card-bg: #FFFFFF;
+    --text: #1B2530;
+    --text-muted: #6B7684;
+    --border: #DCE4EA;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 16px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  header {
+    background: var(--navy);
+    color: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  header p { margin: 0; opacity: 0.85; font-size: 13px; }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card h3 { margin: 0 0 12px; font-size: 15px; color: var(--navy); }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 14px; }
+  .row .label { color: var(--text-muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-weight: 600; }
+  .calc-row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
+  .calc-total { border-top: 2px solid var(--border); margin-top: 6px; padding-top: 10px; font-size: 18px; font-weight: 700; }
+  .html-box {
+    max-height: 260px;
+    overflow-y: auto;
+    background: #F7FAFC;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .html-box p { margin: 0 0 8px; }
+  .html-box ul, .html-box ol { margin: 0 0 8px; padding-left: 22px; }
+  label.check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; margin-top: 12px; cursor: pointer; }
+  input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+  canvas {
+    width: 100%;
+    height: 200px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: #fff;
+    touch-action: none;
+    display: block;
+  }
+  .canvas-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .btn {
+    display: inline-block;
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: var(--navy); width: 100%; }
+  .btn-outline { background: none; border: 1px solid var(--border); color: var(--text); padding: 6px 14px; font-size: 12px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .badge-done { display: inline-block; background: #E4F5EE; color: #1F7A54; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+  .message { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .message.error { color: #C0392B; }
+  .message.success { color: #1F7A54; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="hdr-title">合約確認</h1>
+    <p id="hdr-sub">載入中…</p>
+  </header>
+  <div id="content"><div class="empty-state">載入中…</div></div>
+</div>
+
+<script>
+(function () {
+  function escapeHtml(str) {
+    return String(str == null ? "" : str).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function formatCurrency(n) {
+    var rounded = Math.round((Number(n) || 0) * 100) / 100;
+    return "$" + rounded.toLocaleString("en-US");
+  }
+
+  var token = new URLSearchParams(window.location.search).get("token") || "";
+  var contentEl = document.getElementById("content");
+
+  function renderItemsTable(items) {
+    if (!items || items.length === 0) return "<p>（無品項）</p>";
+    return '<table><thead><tr><th>品項</th><th>單價</th><th>單位</th><th>數量</th></tr></thead><tbody>' +
+      items.map(function (item) {
+        return '<tr>' +
+          '<td>' + escapeHtml(item.name) + '</td>' +
+          '<td>' + escapeHtml(item.price) + '</td>' +
+          '<td>' + escapeHtml(item.unit) + '</td>' +
+          '<td>' + escapeHtml(item.qty) + '</td>' +
+          '</tr>';
+      }).join("") + '</tbody></table>';
+  }
+
+  function setupSignaturePad(canvas) {
+    var ctx = canvas.getContext("2d");
+    var drawing = false;
+    var hasDrawn = false;
+    var ratio = window.devicePixelRatio || 1;
+
+    function resize() {
+      var rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * ratio;
+      canvas.height = rect.height * ratio;
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#1B2530";
+    }
+    resize();
+
+    function pos(e) {
+      var rect = canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+
+    canvas.addEventListener("pointerdown", function (e) {
+      drawing = true;
+      hasDrawn = true;
+      var p = pos(e);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener("pointermove", function (e) {
+      if (!drawing) return;
+      var p = pos(e);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    });
+    function stop() { drawing = false; }
+    canvas.addEventListener("pointerup", stop);
+    canvas.addEventListener("pointerleave", stop);
+    canvas.addEventListener("pointercancel", stop);
+
+    return {
+      clear: function () {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hasDrawn = false;
+      },
+      isEmpty: function () { return !hasDrawn; },
+      toDataUrl: function () { return canvas.toDataURL("image/png"); },
+    };
+  }
+
+  function renderSigned(detail) {
+    return '<div class="card">' +
+      '<h3>簽署狀態</h3>' +
+      '<span class="badge-done">✓ 已完成簽署</span>' +
+      '<div class="row" style="margin-top:12px;"><span class="label">簽署人</span><span>' + escapeHtml(detail.signerName) + '</span></div>' +
+      '<div class="row"><span class="label">簽署時間</span><span>' + escapeHtml(detail.signedAt) + '</span></div>' +
+      '</div>';
+  }
+
+  function renderSignForm(detail) {
+    var needsAgree = !!detail.nda;
+    return '<div class="card">' +
+      '<h3>確認簽署</h3>' +
+      '<label>簽署人姓名</label>' +
+      '<input type="text" id="signer-name" placeholder="請輸入姓名">' +
+      (needsAgree ? '<label class="check"><input type="checkbox" id="agree-terms"><span>我已閱讀並同意上方保密條款內容</span></label>' : "") +
+      '<label style="display:block;margin-top:14px;">簽名</label>' +
+      '<canvas id="sign-canvas"></canvas>' +
+      '<div class="canvas-actions"><button type="button" class="btn btn-outline" id="clear-sign-btn">清除重簽</button></div>' +
+      '<button type="button" class="btn btn-gold" id="submit-sign-btn" style="margin-top:16px;">確認簽署並送出</button>' +
+      '<p class="message" id="sign-message"></p>' +
+      '</div>';
+  }
+
+  function wireSignForm(detail) {
+    var canvas = document.getElementById("sign-canvas");
+    var pad = setupSignaturePad(canvas);
+    document.getElementById("clear-sign-btn").addEventListener("click", function () { pad.clear(); });
+
+    var agreeBox = document.getElementById("agree-terms");
+    document.getElementById("submit-sign-btn").addEventListener("click", async function () {
+      var msgEl = document.getElementById("sign-message");
+      var btn = document.getElementById("submit-sign-btn");
+      var name = document.getElementById("signer-name").value.trim();
+      if (!name) { msgEl.textContent = "請填寫簽署人姓名"; msgEl.className = "message error"; return; }
+      if (agreeBox && !agreeBox.checked) { msgEl.textContent = "請先閱讀並勾選同意保密條款"; msgEl.className = "message error"; return; }
+      if (pad.isEmpty()) { msgEl.textContent = "請先簽名"; msgEl.className = "message error"; return; }
+
+      btn.disabled = true;
+      msgEl.textContent = "送出中…";
+      msgEl.className = "message";
+      try {
+        var res = await fetch("/api/contract-sign/" + encodeURIComponent(token), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signerName: name, signatureImage: pad.toDataUrl() }),
+        });
+        var data = await res.json();
+        if (!res.ok || data.success === false) {
+          throw new Error(data.error || "送出失敗");
+        }
+        load();
+      } catch (err) {
+        msgEl.textContent = err.message || "送出失敗";
+        msgEl.className = "message error";
+        btn.disabled = false;
+      }
+    });
+  }
+
+  async function load() {
+    if (!token) {
+      document.getElementById("hdr-sub").textContent = "連結無效";
+      contentEl.innerHTML = '<div class="empty-state">這個連結缺少必要參數，請跟業務確認正確的連結。</div>';
+      return;
+    }
+    try {
+      var res = await fetch("/api/contract-sign/" + encodeURIComponent(token));
+      var detail = await res.json();
+      if (!res.ok) {
+        throw new Error(detail.error || "無法載入");
+      }
+
+      document.getElementById("hdr-title").textContent = detail.contractNumber || "合約確認";
+      document.getElementById("hdr-sub").textContent = "報價單編號 " + (detail.quoteNumber || "—") + "　" + (detail.clientName || "");
+
+      var amount = parseFloat(detail.amount) || 0;
+
+      var html =
+        '<div class="card">' +
+          '<h3>合約資訊</h3>' +
+          '<div class="row"><span class="label">客戶名稱</span><span>' + escapeHtml(detail.clientName || "—") + '</span></div>' +
+          '<div class="row"><span class="label">報價日期</span><span>' + escapeHtml(detail.quoteDate || "—") + '</span></div>' +
+          '<div class="row"><span class="label">有效期限</span><span>' + escapeHtml(detail.validUntil || "—") + '</span></div>' +
+        '</div>' +
+
+        '<div class="card">' +
+          '<h3>品項明細</h3>' +
+          renderItemsTable(detail.items) +
+        '</div>' +
+
+        '<div class="card">' +
+          '<h3>合約金額</h3>' +
+          '<div class="calc-row calc-total"><span>總金額（含稅）</span><span>' + formatCurrency(amount) + '</span></div>' +
+        '</div>' +
+
+        (detail.nda ? '<div class="card"><h3>保密條款內容（NDA）</h3><div class="html-box">' + detail.nda + '</div></div>' : "") +
+
+        (detail.note ? '<div class="card"><h3>備註</h3><div class="html-box">' + detail.note + '</div></div>' : "") +
+
+        (detail.signed ? renderSigned(detail) : renderSignForm(detail));
+
+      contentEl.innerHTML = html;
+      if (!detail.signed) wireSignForm(detail);
+    } catch (err) {
+      document.getElementById("hdr-sub").textContent = "無法載入";
+      contentEl.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || "連結無效或已失效，請跟業務確認") + '</div>';
+    }
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>

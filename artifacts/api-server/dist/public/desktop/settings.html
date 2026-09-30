@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>設定 - 個人工作台</title>
+<meta name="theme-color" content="#0B3D5C">
+<link rel="stylesheet" href="/desktop/desktop.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside id="sidebar-root"></aside>
+  <main class="main-content" style="max-width: 640px;">
+    <div class="page-header">
+      <div>
+        <h1>設定</h1>
+        <p class="subtitle">連線狀態僅檢查環境變數是否存在，不會實際發送測試請求</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 20px;">
+      <h3>登入狀態</h3>
+      <div id="login-body"><p class="empty-hint">載入中…</p></div>
+    </div>
+
+    <div class="card">
+      <h3>外部服務連線</h3>
+      <div id="connections-body"><p class="empty-hint">載入中…</p></div>
+    </div>
+  </main>
+</div>
+
+<script src="/desktop/common.js"></script>
+<script src="/desktop/nav.js" data-active="settings"></script>
+<script>
+(function () {
+  var C = window.DesktopCommon;
+
+  var STATUS_LABEL = { connected: "已連線", not_configured: "未設定" };
+  var STATUS_CLASS = { connected: "badge-teal", not_configured: "badge-danger" };
+
+  async function load() {
+    try {
+      var data = await C.apiFetch("/api/desktop-settings");
+
+      document.getElementById("login-body").innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+        '<span><span class="badge badge-teal">已登入</span> LINE User ID: ' + C.escapeHtml(data.userId || "") + '</span>' +
+        '<a class="btn btn-outline" href="/auth/logout">登出</a></div>';
+
+      document.getElementById("connections-body").innerHTML = data.connections.map(function (c) {
+        return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">' +
+          '<span>' + C.escapeHtml(c.label) + '</span>' +
+          '<span class="badge ' + (STATUS_CLASS[c.status] || "badge-muted") + '">' + (STATUS_LABEL[c.status] || c.status) + '</span></div>';
+      }).join("");
+    } catch (err) {
+      document.getElementById("connections-body").innerHTML = '<p class="empty-hint">無法載入（' + C.escapeHtml(err.message) + '）</p>';
+    }
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>

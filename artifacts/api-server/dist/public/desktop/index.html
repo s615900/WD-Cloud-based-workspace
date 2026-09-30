@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>首頁 - 個人工作台</title>
+<meta name="theme-color" content="#0B3D5C">
+<link rel="stylesheet" href="/desktop/desktop.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside id="sidebar-root"></aside>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <h1 id="greeting">你好</h1>
+        <p class="subtitle" id="today-label"></p>
+      </div>
+    </div>
+
+    <div class="card-grid">
+      <div class="card" id="schedule-card">
+        <div class="card-title-row"><h3>近三日行程</h3><a href="/desktop/calendar.html">查看行事曆 ›</a></div>
+        <div id="schedule-card-body"><p class="empty-hint">載入中…</p></div>
+      </div>
+
+      <div class="card" id="projects-card">
+        <div class="card-title-row"><h3>專案進度</h3><a href="/desktop/projects.html">查看全部 ›</a></div>
+        <div id="projects-card-body"><p class="empty-hint">載入中…</p></div>
+      </div>
+
+      <div class="card" id="quotes-card">
+        <div class="card-title-row"><h3>合約 / 報價</h3><a href="/desktop/quotes.html">查看全部 ›</a></div>
+        <div id="quotes-card-body"><p class="empty-hint">載入中…</p></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title-row">
+        <h3 id="calendar-month-label">行事曆</h3>
+        <div class="page-actions">
+          <button class="btn btn-outline" id="cal-prev">‹ 上月</button>
+          <button class="btn btn-outline" id="cal-next">下月 ›</button>
+        </div>
+      </div>
+      <div class="calendar-grid" id="calendar-weekdays"></div>
+      <div class="calendar-grid" id="calendar-cells" style="margin-top: 6px;"></div>
+      <p class="form-hint" style="margin-top: 12px;">
+        <span class="calendar-dot dot-private" style="margin-right: 4px;"></span>私人行程
+        <span class="calendar-dot dot-business" style="margin-left: 16px; margin-right: 4px;"></span>接案商業（報價／合約日期）
+      </p>
+    </div>
+  </main>
+</div>
+
+<script src="/desktop/common.js"></script>
+<script src="/desktop/nav.js" data-active="index"></script>
+<script>
+(function () {
+  var C = window.DesktopCommon;
+  var businessLocks = {};
+
+  function renderGreeting() {
+    var hour = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Taipei", hour: "2-digit", hour12: false }).format(new Date());
+    var h = parseInt(hour, 10);
+    var greet = h < 5 ? "夜深了" : h < 12 ? "早安" : h < 18 ? "午安" : "晚安";
+    document.getElementById("greeting").textContent = greet + "，WD";
+
+    var todayISO = C.todayISO();
+    var label = new Intl.DateTimeFormat("zh-TW", {
+      timeZone: "Asia/Taipei", year: "numeric", month: "long", day: "numeric", weekday: "long",
+    }).format(new Date(todayISO + "T00:00:00+08:00"));
+    document.getElementById("today-label").textContent = label;
+  }
+
+  async function renderScheduleCard() {
+    var body = document.getElementById("schedule-card-body");
+    try {
+      var todayISO = C.todayISO();
+      var month = todayISO.slice(0, 7);
+      var items = await C.apiFetch("/api/schedule?month=" + month);
+      var nextMonthLastDay = todayISO.slice(8, 10) >= "28";
+      if (nextMonthLastDay) {
+        var nextItems = await C.apiFetch("/api/schedule?month=" + C.addMonths(month, 1));
+        items = items.concat(nextItems);
+      }
+      var threeDaysLater = new Date(new Date(todayISO + "T00:00:00+08:00").getTime() + 3 * 86400000);
+      var cutoff = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(threeDaysLater);
+      var upcoming = items.filter(function (item) { return item.date >= todayISO && item.date <= cutoff; }).slice(0, 6);
+
+      if (upcoming.length === 0) {
+        body.innerHTML = '<p class="empty-hint">近三日沒有安排行程</p>';
+        return;
+      }
+      body.innerHTML = upcoming.map(function (item) {
+        return '<div style="padding:8px 0;border-bottom:1px solid var(--border);">' +
+          '<span class="badge">' + C.escapeHtml(item.date.slice(5)) + (item.time ? " " + C.escapeHtml(item.time) : "") + '</span> ' +
+          C.escapeHtml(item.title) + '</div>';
+      }).join("");
+    } catch (err) {
+      body.innerHTML = '<p class="empty-hint">無法載入（' + C.escapeHtml(err.message) + '）</p>';
+    }
+  }
+
+  async function renderProjectsCard(quoteMap) {
+    var body = document.getElementById("projects-card-body");
+    try {
+      var projects = await C.apiFetch("/api/projects");
+      var top = projects.slice(0, 3);
+      if (top.length === 0) {
+        body.innerHTML = '<p class="empty-hint">尚無專案</p>';
+        return;
+      }
+      body.innerHTML = top.map(function (p) {
+        var label = (quoteMap[p.quoteId] && quoteMap[p.quoteId].clientName) || ("報價單 #" + p.quoteId);
+        return '<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;">' +
+          '<span>' + C.escapeHtml(label) + '</span><span class="badge badge-teal">' + C.escapeHtml(p.status) + '</span></div>';
+      }).join("");
+    } catch (err) {
+      body.innerHTML = '<p class="empty-hint">無法載入（' + C.escapeHtml(err.message) + '）</p>';
+    }
+  }
+
+  async function renderQuotesCard() {
+    var body = document.getElementById("quotes-card-body");
+    var quoteMap = {};
+    try {
+      var quotes = await C.apiFetch("/api/quotes");
+      quotes.forEach(function (q) { quoteMap[q.id] = q; });
+      var contracts = [];
+      try { contracts = await C.apiFetch("/api/contracts"); } catch (e) { /* 合約若失敗不擋報價顯示 */ }
+
+      var merged = quotes.slice(0, 3).map(function (q) {
+        return { kind: "報價", label: q.clientName || ("客戶 #" + q.clientId), sub: q.quoteDate, id: q.id };
+      }).concat(contracts.slice(0, 3).map(function (c) {
+        var clientLabel = (quoteMap[c.quoteId] && quoteMap[c.quoteId].clientName) || ("客戶 #" + c.clientId);
+        return { kind: "合約", label: clientLabel, sub: c.status, id: c.id };
+      }));
+      merged.sort(function (a, b) { return b.id - a.id; });
+      merged = merged.slice(0, 3);
+
+      if (merged.length === 0) {
+        body.innerHTML = '<p class="empty-hint">尚無報價或合約</p>';
+      } else {
+        body.innerHTML = merged.map(function (m) {
+          return '<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;">' +
+            '<span><span class="badge badge-gold" style="margin-right:6px;">' + m.kind + '</span>' + C.escapeHtml(m.label) + '</span>' +
+            '<span class="form-hint">' + C.escapeHtml(m.sub) + '</span></div>';
+        }).join("");
+      }
+    } catch (err) {
+      body.innerHTML = '<p class="empty-hint">無法載入（' + C.escapeHtml(err.message) + '）</p>';
+    }
+    return quoteMap;
+  }
+
+  // ── 底部行事曆月檢視：私人行程（/api/schedule，深藍點）＋接案商業（報價／合約日期，金色點）──
+  var calendarMonth = C.currentMonth();
+
+  function buildMonthCells(month) {
+    var year = parseInt(month.slice(0, 4), 10);
+    var mon = parseInt(month.slice(5, 7), 10) - 1;
+    var firstDay = new Date(Date.UTC(year, mon, 1));
+    var startWeekday = firstDay.getUTCDay();
+    var daysInMonth = new Date(Date.UTC(year, mon + 1, 0)).getUTCDate();
+    var cells = [];
+    for (var i = 0; i < startWeekday; i++) cells.push(null);
+    for (var d = 1; d <= daysInMonth; d++) {
+      cells.push(month + "-" + String(d).padStart(2, "0"));
+    }
+    return cells;
+  }
+
+  async function renderCalendar() {
+    document.getElementById("calendar-month-label").textContent = "行事曆　" + calendarMonth;
+    var weekdaysEl = document.getElementById("calendar-weekdays");
+    weekdaysEl.innerHTML = ["日", "一", "二", "三", "四", "五", "六"].map(function (w) {
+      return '<div class="calendar-weekday">' + w + '</div>';
+    }).join("");
+
+    var cellsEl = document.getElementById("calendar-cells");
+    cellsEl.innerHTML = '<p class="empty-hint">載入中…</p>';
+
+    var privateDates = {};
+    var businessDates = {};
+    try {
+      var schedule = await C.apiFetch("/api/schedule?month=" + calendarMonth);
+      schedule.forEach(function (s) { privateDates[s.date] = true; });
+    } catch (e) { /* 忽略單一來源失敗，其他仍照常顯示 */ }
+    // 報價單／合約各自的模組鎖定時，不打對應的 API，那個來源的金色點就不顯示——
+    // 兩邊現在是各自獨立的開關（見 lib/businessLock.ts），不再綁在同一個全域旗標上。
+    if (!businessLocks.quotes) {
+      try {
+        var quotes = await C.apiFetch("/api/quotes");
+        quotes.forEach(function (q) {
+          var d = (q.quoteDate || "").replaceAll("/", "-");
+          if (d.startsWith(calendarMonth)) businessDates[d] = true;
+        });
+      } catch (e) { /* ignore */ }
+    }
+    if (!businessLocks.contracts) {
+      try {
+        var contracts = await C.apiFetch("/api/contracts");
+        contracts.forEach(function (c) {
+          var d = (c.quoteDate || "").replaceAll("/", "-");
+          if (d.startsWith(calendarMonth)) businessDates[d] = true;
+        });
+      } catch (e) { /* ignore */ }
+    }
+
+    var todayISO = C.todayISO();
+    var cells = buildMonthCells(calendarMonth);
+    cellsEl.innerHTML = cells.map(function (date) {
+      if (!date) return '<div class="calendar-cell outside"></div>';
+      var classes = "calendar-cell" + (date === todayISO ? " today" : "");
+      var dots = "";
+      if (privateDates[date]) dots += '<span class="calendar-dot dot-private"></span>';
+      if (businessDates[date]) dots += '<span class="calendar-dot dot-business"></span>';
+      return '<div class="' + classes + '"><div class="cell-date">' + parseInt(date.slice(8), 10) + '</div><div class="calendar-dots">' + dots + '</div></div>';
+    }).join("");
+  }
+
+  document.getElementById("cal-prev").addEventListener("click", function () {
+    calendarMonth = C.addMonths(calendarMonth, -1);
+    renderCalendar();
+  });
+  document.getElementById("cal-next").addEventListener("click", function () {
+    calendarMonth = C.addMonths(calendarMonth, 1);
+    renderCalendar();
+  });
+
+  renderGreeting();
+  renderScheduleCard();
+  C.getBusinessLocks().then(function (locks) {
+    businessLocks = locks;
+    var projectsCard = document.getElementById("projects-card");
+    var quotesCard = document.getElementById("quotes-card");
+    // 報價單卡片同時顯示報價單／合約兩種資料（見 renderQuotesCard），兩邊都鎖定才整張隱藏；
+    // 只鎖其中一邊的話，renderQuotesCard 內建的 try/catch 早就會讓那個來源安靜地空著。
+    if (locks.quotes && locks.contracts) {
+      if (quotesCard) quotesCard.style.display = "none";
+    } else {
+      renderQuotesCard().then(function (quoteMap) {
+        if (!locks.projects) renderProjectsCard(quoteMap || {});
+      });
+    }
+    if (locks.projects) {
+      if (projectsCard) projectsCard.style.display = "none";
+    } else if (locks.quotes && locks.contracts) {
+      // 報價單卡片整張被跳過（上面沒呼叫 renderQuotesCard），但專案進度沒鎖，
+      // 這裡單獨補上 renderProjectsCard，quoteMap 給空物件即可（只是用來標客戶名稱）。
+      renderProjectsCard({});
+    }
+    renderCalendar();
+  });
+})();
+</script>
+</body>
+</html>
