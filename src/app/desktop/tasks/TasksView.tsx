@@ -55,7 +55,7 @@ export function TasksView() {
       <PageHeader title="待辦事項" subtitle="個人行程／待辦的完整清單，跟 LINE Bot 任務資料庫一致" />
 
       <div className="card mb-5">
-        <div className="flex flex-wrap items-end gap-4">
+        <div className="grid grid-cols-2 items-end gap-3 md:flex md:flex-wrap md:gap-4">
           <div className="form-field min-w-[140px]">
             <label>類型</label>
             <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
@@ -72,7 +72,7 @@ export function TasksView() {
               <option value="完成">完成</option>
             </select>
           </div>
-          <div className="form-field min-w-[220px] flex-1">
+          <div className="form-field col-span-2 min-w-[220px] flex-1">
             <label>關鍵字</label>
             <input
               className="input"
@@ -86,7 +86,7 @@ export function TasksView() {
           </div>
           <button
             type="button"
-            className="btn btn-outline"
+            className="btn btn-outline col-span-2 md:col-span-1"
             onClick={() => {
               setType("");
               setStatus("");
@@ -99,7 +99,33 @@ export function TasksView() {
         </div>
       </div>
 
-      <div className="card overflow-x-auto">
+      {/* 手機：卡片清單 */}
+      <div className="flex flex-col gap-2.5 md:hidden">
+        {rows.status === "loading" ? (
+          <p className="empty-hint">載入中…</p>
+        ) : rows.status === "error" ? (
+          <p className="empty-hint">無法載入（{rows.message}）</p>
+        ) : rows.tasks.length === 0 ? (
+          <p className="empty-hint">沒有符合的待辦事項</p>
+        ) : (
+          rows.tasks.map((t, idx) => (
+            <button key={idx} type="button" className="list-card" onClick={() => openItem(t)}>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <span className={`badge ${t.status === "完成" ? "badge-teal" : "badge-gold"}`}>{t.status}</span>
+                <span className={`badge ${t.type === "行程" ? "badge-teal" : "badge-muted"}`}>{labelForType(t.type)}</span>
+                <span className="ml-auto text-xs text-navy-2">{t.source === "schedule" ? "檢視 ›" : "編輯 ›"}</span>
+              </div>
+              <div className="font-semibold">{t.content}</div>
+              <div className="mt-1 text-xs text-muted">
+                {t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : "（未排定）"}　建立 {t.createdAt}
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+
+      {/* 平板／電腦：表格 */}
+      <div className="card hidden overflow-x-auto md:block">
         <table className="data-table">
           <thead>
             <tr>
@@ -129,8 +155,8 @@ export function TasksView() {
                     <span className={`badge ${t.type === "行程" ? "badge-teal" : "badge-muted"}`}>{labelForType(t.type)}</span>
                   </td>
                   <td>{t.content}</td>
-                  <td>{t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : "（未排定）"}</td>
-                  <td className="form-hint">{t.createdAt}</td>
+                  <td className="whitespace-nowrap">{t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : "（未排定）"}</td>
+                  <td className="form-hint whitespace-nowrap">{t.createdAt}</td>
                   <td>
                     <button type="button" className="btn btn-outline btn-sm">
                       {t.source === "schedule" ? "檢視" : "編輯"}

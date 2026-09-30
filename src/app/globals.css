@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* 響應式斷點（Tailwind 預設）：
+   手機 < 768px（md 以下）：單欄、表格改卡片、側邊欄收成抽屜
+   平板 768–1023px（md）：雙欄表單、側邊欄仍是抽屜
+   電腦 ≥ 1024px（lg）：固定側邊欄；欄位很多的表格到 ≥ 1280px（xl）才顯示成表格 */
+
 /* ── 設計 token：沿用原本 desktop.css 的品牌色、圓角與陰影 ───────────────── */
 @theme {
   --color-navy: #0b3d5c;
@@ -38,7 +43,7 @@
 /* ── 共用元件樣式：畫面上反覆出現的按鈕／卡片／表單／表格／徽章 ───────────── */
 @layer components {
   .btn {
-    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border-0 px-4 py-[9px] text-sm font-semibold no-underline disabled:cursor-default disabled:opacity-55;
+    @apply inline-flex cursor-pointer whitespace-nowrap items-center justify-center gap-1.5 rounded-[10px] border-0 px-4 py-[9px] text-sm font-semibold no-underline disabled:cursor-default disabled:opacity-55;
   }
   .btn-sm {
     @apply px-3 py-[5px] text-xs;
@@ -97,12 +102,17 @@
   .data-table td {
     @apply border-b border-line p-3 align-top max-sm:p-2;
   }
+  /* 欄位多的列表表格：儲存格不換行，放不下時整張表格左右捲動（外層要有 overflow-x-auto） */
+  .data-table.nowrap th,
+  .data-table.nowrap td {
+    @apply whitespace-nowrap;
+  }
   .data-table tbody tr {
     @apply hover:bg-subtle;
   }
 
   .badge {
-    @apply inline-block rounded-full bg-navy-soft px-2.5 py-[3px] text-xs font-bold text-navy-2;
+    @apply inline-block rounded-full whitespace-nowrap bg-navy-soft px-2.5 py-[3px] text-xs font-bold text-navy-2;
   }
   .badge-gold {
     @apply bg-gold-soft text-gold-dark;
@@ -120,8 +130,22 @@
     @apply bg-[#eaf1fb] text-[#2b5fa0];
   }
 
+  /* 手機／平板用的卡片列（取代欄位很多的表格） */
+  .list-card {
+    @apply block w-full rounded-[12px] border border-line bg-white p-3.5 text-left text-sm;
+  }
+  .list-card-row {
+    @apply flex items-baseline justify-between gap-3 py-0.5;
+  }
+  .list-card-row > span:first-child {
+    @apply shrink-0 text-xs text-muted;
+  }
+  .list-card-row > :last-child {
+    @apply min-w-0 text-right break-words;
+  }
+
   .id-chip {
-    @apply rounded-md bg-navy-soft px-2 py-[3px] font-mono text-xs text-navy;
+    @apply rounded-md whitespace-nowrap bg-navy-soft px-2 py-[3px] font-mono text-xs text-navy;
   }
 }
 

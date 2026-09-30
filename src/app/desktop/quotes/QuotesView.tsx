@@ -72,7 +72,8 @@ export function QuotesView() {
 
       <div className="card">
         <SearchBox value={search} onChange={setSearch} placeholder="搜尋報價單編號、專案名稱或客戶名稱" />
-        <div className="mb-4 flex flex-wrap gap-0.5 border-b-[1.5px] border-line">
+        {/* 手機寬度放不下時左右滑動，不換行 */}
+        <div className="mb-4 flex gap-0.5 overflow-x-auto border-b-[1.5px] border-line">
           {[["all", "全部"] as const, ...PAYMENT_STATUSES.map((s) => [s, s] as const)].map(([key, label]) => {
             const active = payFilter === key;
             return (
@@ -80,7 +81,7 @@ export function QuotesView() {
                 key={key}
                 type="button"
                 onClick={() => setPayFilter(key)}
-                className={`flex cursor-pointer items-center gap-[7px] border-b-[2.5px] px-3.5 py-[9px] text-[13px] font-bold hover:text-navy ${
+                className={`flex shrink-0 cursor-pointer items-center gap-[7px] border-b-[2.5px] px-3.5 py-[9px] whitespace-nowrap text-[13px] font-bold hover:text-navy ${
                   active ? "border-navy text-navy" : "border-transparent text-muted"
                 }`}
               >
@@ -96,8 +97,66 @@ export function QuotesView() {
             );
           })}
         </div>
-        <div className="overflow-x-auto">
-          <table className="data-table">
+        {/* 手機／平板：卡片清單 */}
+        <div className="flex flex-col gap-2.5 xl:hidden">
+          {rows.status === "loading" ? (
+            <p className="empty-hint">載入中…</p>
+          ) : rows.status === "error" ? (
+            <p className="empty-hint">無法載入（{rows.message}）</p>
+          ) : all.length === 0 ? (
+            <p className="empty-hint">尚無報價單</p>
+          ) : filtered.length === 0 ? (
+            <p className="empty-hint">沒有符合的報價單</p>
+          ) : (
+            filtered.map((q) => (
+              <div key={q.id} className="list-card">
+                <Link href={`/desktop/quotes/${q.id}`} className="block text-inherit no-underline">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="id-chip">{q.quoteNumber || `#${q.id}`}</span>
+                    <PaymentBadge status={q.paymentStatus} />
+                    <span className="ml-auto text-xs text-muted">{q.quoteDate}</span>
+                  </div>
+                  <div className="font-bold">{q.clientName || `#${q.clientId}`}</div>
+                  <div className="mb-1.5 text-[13px] text-muted">{q.projectName || "—"}</div>
+                  <div className="list-card-row">
+                    <span>總金額（含稅）</span>
+                    <span className="font-bold">{q.totalAmount || "—"}</span>
+                  </div>
+                  <div className="list-card-row">
+                    <span>已讀／簽署</span>
+                    <span className="flex flex-wrap justify-end gap-1">
+                      <span className={`badge ${q.readAt ? "badge-teal" : "badge-muted"}`}>{q.readAt ? "已讀" : "未讀"}</span>
+                      <span className={`badge ${q.signedAt ? "badge-teal" : "badge-muted"}`}>
+                        {q.signedAt ? `${q.signerName || ""} 已簽署`.trim() : "尚未簽署"}
+                      </span>
+                    </span>
+                  </div>
+                </Link>
+                <div className="mt-2.5 flex gap-2 border-t border-line pt-2.5">
+                  <Link className="btn btn-outline btn-sm flex-1" href={`/desktop/quotes/${q.id}/edit`}>
+                    編輯
+                  </Link>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm flex-1"
+                    disabled={linkBusy === q.id}
+                    onClick={async () => {
+                      setLinkBusy(q.id);
+                      await promptSignLink("quotes", q.id);
+                      setLinkBusy(null);
+                    }}
+                  >
+                    傳送簽署連結
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* 電腦：表格 */}
+        <div className="hidden overflow-x-auto xl:block">
+          <table className="data-table nowrap">
             <thead>
               <tr>
                 <th>報價單編號</th>
@@ -129,7 +188,7 @@ export function QuotesView() {
                     <td>
                       <span className="id-chip">{q.quoteNumber || `#${q.id}`}</span>
                     </td>
-                    <td>{q.quoteDate}</td>
+                    <td className="whitespace-nowrap">{q.quoteDate}</td>
                     <td>{q.clientName || `#${q.clientId}`}</td>
                     <td>{q.projectName || "—"}</td>
                     <td>{q.untaxedAmount || "—"}</td>

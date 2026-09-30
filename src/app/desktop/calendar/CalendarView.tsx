@@ -166,15 +166,15 @@ export function CalendarView({ initialDate }: { initialDate: string | null }) {
         )}
       </section>
 
-      <div className="grid grid-cols-1 gap-[18px] min-[901px]:grid-cols-[2fr_1fr]">
+      <div className="grid grid-cols-1 gap-[18px] xl:grid-cols-[2fr_1fr]">
         <div className="min-w-0">
           <section className="card mb-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h3 className="mb-0">
                 {view === "month" ? calendarMonth : `${weekStart} ～ ${addDays(weekStart, 6)}`}
               </h3>
-              <div className="flex flex-wrap gap-2.5">
-                <div className="flex w-[140px] gap-2">
+              <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:gap-2.5 [&_.btn]:max-sm:flex-1 [&_.btn]:max-sm:px-2">
+                <div className="flex w-full gap-2 sm:w-[140px]">
                   {(["month", "week"] as const).map((v) => (
                     <button
                       key={v}
@@ -327,36 +327,46 @@ function CalendarBody({
 
   if (view === "month") {
     return (
-      <div className="max-[700px]:overflow-x-auto">
-        <div className="grid grid-cols-7 gap-1.5 max-[700px]:min-w-[600px]">
+      <div>
+        <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
           {WEEKDAYS.map((w) => (
             <div key={w} className="pb-1 text-center text-xs text-muted">
               {w}
             </div>
           ))}
           {monthCells(calendarMonth).map((date, i) => {
-            if (!date) return <div key={`pad-${i}`} className="min-h-[90px] rounded-[9px] border border-line bg-[#FAFCFD]" />;
+            if (!date)
+              return <div key={`pad-${i}`} className="min-h-14 rounded-[9px] border border-line bg-[#FAFCFD] sm:min-h-[90px]" />;
             const entries = entriesOf(date);
             const selected = date === selectedDate;
             return (
               <div
                 key={date}
                 onClick={() => onDateClick(date)}
-                className={`min-h-[90px] cursor-pointer rounded-[9px] border px-[7px] py-1.5 hover:border-navy max-[700px]:min-h-16 ${
+                className={`min-h-14 min-w-0 cursor-pointer rounded-[9px] border px-1 py-1 hover:border-navy sm:min-h-[90px] sm:px-[7px] sm:py-1.5 ${
                   selected ? "border-navy bg-navy-soft shadow-[inset_0_0_0_1px_var(--color-navy)]" : "border-line bg-white"
                 }`}
               >
-                <div className="text-[13px] font-bold">{Number(date.slice(8))}</div>
-                {entries.slice(0, 3).map((e) => (
-                  <div
-                    key={e.id}
-                    className="mt-1 h-4 overflow-hidden rounded px-[5px] py-px text-[10px] font-bold whitespace-nowrap text-white"
-                    style={{ background: entryColor(e) }}
-                  >
-                    {e.title}
-                  </div>
-                ))}
-                {entries.length > 3 && <div className="form-hint">+{entries.length - 3} 筆</div>}
+                <div className="text-center text-[13px] font-bold sm:text-left">{Number(date.slice(8))}</div>
+                {/* 手機：最多 4 個彩色圓點，點日期後在下方看詳情 */}
+                <div className="mt-1 flex flex-wrap justify-center gap-[3px] sm:hidden">
+                  {entries.slice(0, 4).map((e) => (
+                    <span key={e.id} className="size-1.5 rounded-full" style={{ background: entryColor(e) }} />
+                  ))}
+                </div>
+                {/* 平板／電腦：行程條 */}
+                <div className="hidden sm:block">
+                  {entries.slice(0, 3).map((e) => (
+                    <div
+                      key={e.id}
+                      className="mt-1 h-4 overflow-hidden rounded px-[5px] py-px text-[10px] font-bold whitespace-nowrap text-white"
+                      style={{ background: entryColor(e) }}
+                    >
+                      {e.title}
+                    </div>
+                  ))}
+                  {entries.length > 3 && <div className="form-hint">+{entries.length - 3} 筆</div>}
+                </div>
               </div>
             );
           })}
@@ -367,8 +377,8 @@ function CalendarBody({
 
   const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   return (
-    <div className="max-[700px]:overflow-x-auto">
-      <div className="grid grid-cols-7 gap-2 max-[700px]:min-w-[600px]">
+    <div>
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
         {dates.map((date) => {
           const entries = entriesOf(date);
           const free = state.free[date] ?? [];
@@ -376,7 +386,7 @@ function CalendarBody({
             <div
               key={date}
               onClick={() => onDateClick(date)}
-              className={`min-h-40 min-w-0 cursor-pointer rounded-[10px] border p-2 hover:border-navy ${
+              className={`min-w-0 cursor-pointer rounded-[10px] border p-2 hover:border-navy md:min-h-40 ${
                 date === selectedDate ? "border-navy bg-navy-soft" : "border-line bg-white"
               }`}
             >

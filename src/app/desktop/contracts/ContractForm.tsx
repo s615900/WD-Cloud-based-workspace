@@ -300,7 +300,49 @@ export function ContractForm({ editId }: { editId: string | null }) {
                 + 新增品項
               </button>
             </div>
-            <div className="overflow-x-auto">
+            {/* 手機：每個品項一張卡片 */}
+            <div className="flex flex-col gap-2.5 md:hidden">
+              {items.length === 0 ? (
+                <p className="empty-hint">尚未加入品項</p>
+              ) : (
+                items.map((item, index) => (
+                  <div key={index} className="rounded-[12px] border border-line p-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      <label className="col-span-3 flex flex-col gap-1 text-xs text-muted">
+                        項目名稱
+                        <input className="input-sm text-ink" value={item.name ?? ""} onChange={(e) => updateItem(index, "name", e.target.value)} />
+                      </label>
+                      {(
+                        [
+                          ["price", "單價"],
+                          ["unit", "單位"],
+                          ["qty", "數量"],
+                        ] as const
+                      ).map(([field, label]) => (
+                        <label key={field} className="flex flex-col gap-1 text-xs text-muted">
+                          {label}
+                          <input
+                            className="input-sm text-ink"
+                            inputMode={field === "unit" ? undefined : "decimal"}
+                            value={item[field] ?? ""}
+                            onChange={(e) => updateItem(index, field, e.target.value)}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-sm mt-2.5 w-full"
+                      onClick={() => setItems((list) => list.filter((_, i) => i !== index))}
+                    >
+                      移除
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="data-table">
                 <thead>
                   <tr>
