@@ -2,11 +2,12 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isAuthBypassed } from "@/server/session";
+import { publicUrl } from "@/server/publicUrl";
 import { STATE_COOKIE, STATE_MAX_AGE_SEC, getEnv, getRedirectUri, secureCookie } from "@/server/lineLogin";
 
 export async function GET(request: Request) {
   // 開發模式略過 LINE 登入時，直接回首頁
-  if (isAuthBypassed()) return NextResponse.redirect(new URL("/desktop", request.url));
+  if (isAuthBypassed()) return NextResponse.redirect(publicUrl("/desktop", request));
 
   const state = randomBytes(16).toString("hex");
 

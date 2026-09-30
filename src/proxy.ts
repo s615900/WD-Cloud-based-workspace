@@ -3,6 +3,7 @@
 // /api/healthz、/api/cron、/webhook 不在 matcher 裡，天生就不受影響。
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, getAuthorizedUser } from "@/server/session";
+import { publicUrl } from "@/server/publicUrl";
 
 export function proxy(request: NextRequest) {
   const user = getAuthorizedUser(request.cookies.get(SESSION_COOKIE)?.value);
@@ -10,7 +11,7 @@ export function proxy(request: NextRequest) {
 
   const accept = request.headers.get("accept") ?? "";
   if (accept.includes("text/html")) {
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+    return NextResponse.redirect(publicUrl("/auth/login", request));
   }
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 }

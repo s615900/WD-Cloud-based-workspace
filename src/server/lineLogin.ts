@@ -8,10 +8,12 @@ export function getEnv(key: string): string {
   return val;
 }
 
-// 原本寫死 Replit 網址；改成環境變數 LINE_LOGIN_REDIRECT_URI，沒設就用目前請求的網域組出來。
+import { publicUrl } from "./publicUrl";
+
+// 優先用環境變數 LINE_LOGIN_REDIRECT_URI；沒設就用網站對外網域組出來（見 publicUrl）。
 // 注意：這個網址必須跟 LINE Developers 後台登記的 Callback URL 完全一致。
 export function getRedirectUri(request: Request): string {
-  return process.env["LINE_LOGIN_REDIRECT_URI"] ?? new URL("/auth/callback", request.url).toString();
+  return process.env["LINE_LOGIN_REDIRECT_URI"] || publicUrl("/auth/callback", request).toString();
 }
 
 export const secureCookie = process.env.NODE_ENV === "production";

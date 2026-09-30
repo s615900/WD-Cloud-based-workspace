@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { STATE_COOKIE, getEnv, getRedirectUri, secureCookie } from "@/server/lineLogin";
 import { SESSION_COOKIE, SESSION_MAX_AGE_MS, createSessionCookieValue } from "@/server/session";
+import { publicUrl } from "@/server/publicUrl";
 
 function text(body: string, status: number): NextResponse {
   const res = new NextResponse(body, { status, headers: { "Content-Type": "text/plain; charset=utf-8" } });
@@ -71,13 +72,13 @@ export async function GET(request: NextRequest) {
     const allowedUserId = getEnv("ALLOWED_LINE_USER_ID");
 
     if (!lineUserId || lineUserId !== allowedUserId) {
-      const res = NextResponse.redirect(new URL("/no-access", request.url));
+      const res = NextResponse.redirect(publicUrl("/no-access", request));
       res.cookies.delete(STATE_COOKIE);
       return res;
     }
 
     step = "issue_session";
-    const res = NextResponse.redirect(new URL("/", request.url));
+    const res = NextResponse.redirect(publicUrl("/", request));
     res.cookies.delete(STATE_COOKIE);
     res.cookies.set(SESSION_COOKIE, createSessionCookieValue(lineUserId), {
       httpOnly: true,
