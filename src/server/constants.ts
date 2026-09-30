@@ -1,0 +1,16 @@
+export const FLEX_COLORS = {
+  navy: "#1B3A5C",
+  navyDeep: "#0F2540",
+  gold: "#D4A94B",
+  goldSoft: "#F3E3B8",
+  grayBg: "#F4F6F8",
+  line: "#E3E7EC",
+  text: "#1B2733",
+  sub: "#7C8A99",
+  statusDoing: "#B4571E",
+  statusDoingBg: "#FDE8D8",
+  statusDone: "#1E8A4C",
+  statusDoneBg: "#DFF3E3",
+  typeSchedule: "#2A5C8A",
+  typeScheduleBg: "#E4EEF7",
+};

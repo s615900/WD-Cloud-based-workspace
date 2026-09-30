@@ -1,26 +1,146 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ── 設計 token：沿用原本 desktop.css 的品牌色、圓角與陰影 ───────────────── */
+@theme {
+  --color-navy: #0b3d5c;
+  --color-navy-2: #14567e;
+  --color-navy-soft: #e4eef7;
+  --color-gold: #d8a54b;
+  --color-gold-dark: #b4823a;
+  --color-gold-soft: #fbf0dc;
+  --color-teal: #2a9d8f;
+  --color-teal-soft: #dff3f1;
+  --color-page: #eef3f6;
+  --color-ink: #1b2530;
+  --color-muted: #6b7684;
+  --color-line: #dce4ea;
+  --color-danger: #c0392b;
+  --color-danger-soft: #fbe4e1;
+  --color-subtle: #f7fafc;
+
+  --radius-card: 14px;
+  --shadow-card: 0 2px 10px rgba(11, 61, 92, 0.08);
+  --shadow-modal: 0 20px 50px rgba(11, 37, 61, 0.35);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", "Helvetica Neue", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    @apply bg-page font-sans text-ink antialiased;
+  }
+  h3 {
+    @apply mb-3 text-[15px] font-bold text-navy;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── 共用元件樣式：畫面上反覆出現的按鈕／卡片／表單／表格／徽章 ───────────── */
+@layer components {
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border-0 px-4 py-[9px] text-sm font-semibold no-underline disabled:cursor-default disabled:opacity-55;
+  }
+  .btn-sm {
+    @apply px-3 py-[5px] text-xs;
+  }
+  .btn-primary {
+    @apply bg-navy text-white hover:bg-navy-2;
+  }
+  .btn-gold {
+    @apply bg-gradient-to-br from-gold to-gold-dark text-white;
+  }
+  .btn-outline {
+    @apply border border-line bg-white text-navy hover:border-navy-2;
+  }
+  .btn-danger {
+    @apply border border-danger bg-white text-danger;
+  }
+
+  .card {
+    @apply rounded-card bg-white px-[22px] py-5 shadow-card max-sm:p-4;
+  }
+
+  .form-grid {
+    @apply grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2;
+  }
+  .form-field {
+    @apply flex flex-col gap-1.5;
+  }
+  .form-field > label {
+    @apply text-[13px] font-semibold text-muted;
+  }
+  .input {
+    @apply rounded-[10px] border border-line bg-white px-3 py-2.5 text-sm text-ink focus:border-navy-2 focus:outline-none disabled:bg-subtle;
+  }
+  textarea.input {
+    @apply min-h-20 resize-y;
+  }
+  .input-sm {
+    @apply w-full rounded-md border border-line px-2 py-1.5 text-sm;
+  }
+  .form-hint {
+    @apply text-xs text-muted;
+  }
+  .empty-hint {
+    @apply py-2 text-[13px] text-muted;
+  }
+  .section-label {
+    @apply mt-[18px] mb-2.5 text-[11px] font-extrabold tracking-[0.07em] text-muted uppercase first:mt-0;
+  }
+
+  .data-table {
+    @apply w-full border-collapse text-sm max-sm:text-[13px];
+  }
+  .data-table th {
+    @apply border-b-2 border-line px-3 py-2.5 text-left text-xs font-bold text-muted max-sm:p-2;
+  }
+  .data-table td {
+    @apply border-b border-line p-3 align-top max-sm:p-2;
+  }
+  .data-table tbody tr {
+    @apply hover:bg-subtle;
+  }
+
+  .badge {
+    @apply inline-block rounded-full bg-navy-soft px-2.5 py-[3px] text-xs font-bold text-navy-2;
+  }
+  .badge-gold {
+    @apply bg-gold-soft text-gold-dark;
+  }
+  .badge-teal {
+    @apply bg-teal-soft text-teal;
+  }
+  .badge-danger {
+    @apply bg-danger-soft text-danger;
+  }
+  .badge-muted {
+    @apply bg-[#eaedf0] text-muted;
+  }
+  .badge-blue {
+    @apply bg-[#eaf1fb] text-[#2b5fa0];
+  }
+
+  .id-chip {
+    @apply rounded-md bg-navy-soft px-2 py-[3px] font-mono text-xs text-navy;
+  }
+}
+
+/* ── 富文字內容（NDA／備註存進 Ragic 的是 HTML） ─────────────────────── */
+.rich-content {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.rich-content p {
+  margin: 0 0 8px;
+}
+.rich-content ul,
+.rich-content ol {
+  margin: 0 0 8px;
+  padding-left: 22px;
+}
+.rich-content ul {
+  list-style: disc;
+}
+.rich-content ol {
+  list-style: decimal;
 }
