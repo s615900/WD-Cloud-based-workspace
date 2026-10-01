@@ -1,7 +1,7 @@
 "use client";
 
 // 桌面版側邊欄：所有 /desktop/* 頁面共用（掛在 app/desktop/layout.tsx）。
-// 窄螢幕（≤900px）變成可開合的抽屜：漢堡按鈕＋背景遮罩。
+// 平板／手機（< 1024px）變成可開合的抽屜：漢堡按鈕＋背景遮罩。
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -45,7 +45,7 @@ export function Sidebar() {
   return (
     <>
       {/* 手機／平板頂列（漢堡選單），桌面寬度隱藏 */}
-      <div className="sticky top-0 z-[60] hidden items-center gap-3 bg-navy px-4 py-3 text-white max-[900px]:flex">
+      <div className="sticky top-0 z-[60] hidden items-center gap-3 bg-navy px-4 py-3 pt-[max(12px,env(safe-area-inset-top))] text-white max-lg:flex">
         <button
           type="button"
           aria-label="開啟選單"
@@ -58,15 +58,15 @@ export function Sidebar() {
       </div>
 
       <div
-        className={`fixed inset-0 z-[70] hidden bg-[rgba(11,37,61,0.45)] transition-opacity max-[900px]:block ${
+        className={`fixed inset-0 z-[70] hidden bg-[rgba(11,37,61,0.45)] transition-opacity max-lg:block ${
           open ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={() => setOpen(false)}
       />
 
       <aside
-        className={`sticky top-0 h-screen w-[248px] flex-none overflow-y-auto bg-navy px-4 py-6 text-white max-[900px]:fixed max-[900px]:left-0 max-[900px]:z-[80] max-[900px]:shadow-[0_0_24px_rgba(0,0,0,0.25)] max-[900px]:transition-transform ${
-          open ? "" : "max-[900px]:-translate-x-full"
+        className={`sticky top-0 h-screen w-[248px] flex-none overflow-y-auto bg-navy px-4 py-6 text-white max-lg:fixed max-lg:left-0 max-lg:z-[80] max-lg:shadow-[0_0_24px_rgba(0,0,0,0.25)] max-lg:transition-transform ${
+          open ? "" : "max-lg:-translate-x-full"
         }`}
       >
         <div className="px-2 pb-5 text-lg font-bold tracking-wide">個人工作台</div>

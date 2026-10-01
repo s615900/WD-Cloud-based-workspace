@@ -54,8 +54,69 @@ export function ContractsView() {
   return (
     <>
       {header}
-      <div className="card overflow-x-auto">
-        <table className="data-table">
+      {/* 手機／平板：卡片清單 */}
+      <div className="flex flex-col gap-2.5 xl:hidden">
+        {rows.status === "loading" ? (
+          <p className="empty-hint">載入中…</p>
+        ) : rows.status === "error" ? (
+          <p className="empty-hint">無法載入（{rows.message}）</p>
+        ) : rows.contracts.length === 0 ? (
+          <p className="empty-hint">尚無合約</p>
+        ) : (
+          rows.contracts.map((c) => {
+            const status = displayContractStatus(c);
+            return (
+              <div key={c.id} className="list-card">
+                <Link href={`/desktop/contracts/${c.id}`} className="block text-inherit no-underline">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="id-chip">{c.contractNumber || `#${c.id}`}</span>
+                    <span className={`badge ${status.badge}`}>{status.label}</span>
+                    {c.nda && <span className="badge badge-gold">含 NDA</span>}
+                  </div>
+                  <div className="font-bold">{c.clientName}</div>
+                  <div className="mb-1.5 text-[13px] text-muted">報價單 {c.quoteNumber || "—"}</div>
+                  <div className="list-card-row">
+                    <span>合約金額</span>
+                    <span className="font-bold">{formatCurrency(c.amount)}</span>
+                  </div>
+                  <div className="list-card-row">
+                    <span>簽署</span>
+                    <span className="flex flex-wrap justify-end gap-1">
+                      <span className={`badge ${c.customerSignedAt ? "badge-teal" : "badge-muted"}`}>
+                        客戶{c.customerSignedAt ? "已簽" : "未簽"}
+                      </span>
+                      <span className={`badge ${c.staffSignedAt ? "badge-teal" : "badge-muted"}`}>
+                        負責人{c.staffSignedAt ? "已簽" : "未簽"}
+                      </span>
+                    </span>
+                  </div>
+                </Link>
+                {c.status !== "作廢" && !c.customerSignedAt && (
+                  <div className="mt-2.5 border-t border-line pt-2.5">
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm w-full"
+                      onClick={async () => {
+                        await promptSignLink("contracts", c.id);
+                        apiFetch<ContractSummary[]>("/api/contracts").then(
+                          (contracts) => setRows({ status: "ok", contracts }),
+                          () => {},
+                        );
+                      }}
+                    >
+                      傳送簽署連結
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* 電腦：表格 */}
+      <div className="card hidden overflow-x-auto xl:block">
+        <table className="data-table nowrap">
           <thead>
             <tr>
               <th>合約編號</th>

@@ -138,7 +138,7 @@ export function HomeView() {
         subtitle={<span suppressHydrationWarning>{todayLabel}</span>}
       />
 
-      <div className="mb-7 grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-[18px] max-[900px]:grid-cols-1">
+      <div className="mb-7 grid grid-cols-1 gap-[18px] md:grid-cols-2 xl:grid-cols-3">
         <SummaryCard title="近三日行程" href="/desktop/calendar" linkLabel="查看行事曆" state={schedule} empty="近三日沒有安排行程">
           {schedule.status === "ok" &&
             schedule.data.map((item) => (

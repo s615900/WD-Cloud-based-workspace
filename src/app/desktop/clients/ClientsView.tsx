@@ -51,8 +51,54 @@ export function ClientsView() {
       ) : (
         <div className="card">
           <SearchBox value={query} onChange={setQuery} placeholder="搜尋客戶名稱、聯絡人、統編或電話" />
-          <div className="overflow-x-auto">
-            <table className="data-table">
+          {/* 手機／平板：卡片清單 */}
+          <div className="flex flex-col gap-2.5 xl:hidden">
+            {rows.status === "loading" ? (
+              <p className="empty-hint">載入中…</p>
+            ) : rows.status === "error" ? (
+              <p className="empty-hint">無法載入（{rows.message}）</p>
+            ) : rows.clients.length === 0 ? (
+              <p className="empty-hint">尚無客戶資料</p>
+            ) : filtered.length === 0 ? (
+              <p className="empty-hint">找不到符合的客戶</p>
+            ) : (
+              filtered.map((c) => (
+                <button key={c.id} type="button" className="list-card" onClick={() => setEditing(c)}>
+                  <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="id-chip">{c.code || "—"}</span>
+                    <span className={c.accountType === "公司戶" ? "badge" : "badge badge-muted"}>{c.accountType || "一般戶"}</span>
+                    <span className="badge">{c.type}</span>
+                    <span className="ml-auto text-xs text-navy-2">編輯 ›</span>
+                  </div>
+                  <div className="mb-1 font-bold">{c.name}</div>
+                  <div className="list-card-row">
+                    <span>聯絡人</span>
+                    <span>{c.contact || "—"}</span>
+                  </div>
+                  <div className="list-card-row">
+                    <span>電話</span>
+                    <span>{c.contactPhone || c.companyPhone || "—"}</span>
+                  </div>
+                  {c.taxId && (
+                    <div className="list-card-row">
+                      <span>統一編號</span>
+                      <span className="font-mono">{c.taxId}</span>
+                    </div>
+                  )}
+                  {c.email && (
+                    <div className="list-card-row">
+                      <span>Email</span>
+                      <span>{c.email}</span>
+                    </div>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+
+          {/* 電腦：表格 */}
+          <div className="hidden overflow-x-auto xl:block">
+            <table className="data-table nowrap">
               <thead>
                 <tr>
                   <th>客戶編號</th>

@@ -181,7 +181,24 @@ function ContractDetailBody({ id, detail, onReload }: { id: string; detail: Cont
       <div className="card">
         <h3>品項</h3>
         {detail.items?.length ? (
-          <div className="overflow-x-auto">
+          <>
+          {/* 手機：品項清單 */}
+          <div className="divide-y divide-line md:hidden">
+            {detail.items.map((item, i) => (
+              <div key={item.id ?? i} className="py-2.5 text-sm">
+                <div className="flex justify-between gap-3">
+                  <span className="font-semibold">{item.name}</span>
+                  <span className="font-semibold whitespace-nowrap">
+                    {formatCurrency((parseFloat(item.price) || 0) * (parseFloat(item.qty) || 0))}
+                  </span>
+                </div>
+                <div className="text-xs text-muted">
+                  {item.price} × {item.qty} {item.unit}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="data-table">
               <thead>
                 <tr>
@@ -205,6 +222,7 @@ function ContractDetailBody({ id, detail, onReload }: { id: string; detail: Cont
               </tbody>
             </table>
           </div>
+          </>
         ) : (
           <p className="empty-hint">尚無品項</p>
         )}
