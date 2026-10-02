@@ -16,7 +16,7 @@ import { apiFetch, errorText, promptSignLink } from "@/lib/client";
 import { useBusinessLocks } from "@/lib/useBusinessLocks";
 import { PAYMENT_STATUSES, type QuoteSummary } from "@/lib/types";
 
-const COLSPAN = 11;
+const COLSPAN = 9;
 
 type Rows = { status: "loading" } | { status: "error"; message: string } | { status: "ok"; quotes: QuoteSummary[] };
 
@@ -185,8 +185,6 @@ export function QuotesView() {
                 <th>報價日期</th>
                 <th>客戶</th>
                 <th>專案名稱</th>
-                <th>未稅金額</th>
-                <th>稅額</th>
                 <th>總金額含稅</th>
                 <th>付款狀態</th>
                 <th>已讀追蹤</th>
@@ -213,8 +211,6 @@ export function QuotesView() {
                     <td className="whitespace-nowrap">{q.quoteDate}</td>
                     <td>{q.clientName || `#${q.clientId}`}</td>
                     <td>{q.projectName || "—"}</td>
-                    <td>{q.untaxedAmount || "—"}</td>
-                    <td>{q.taxAmount || "—"}</td>
                     <td className="font-bold">{q.totalAmount || "—"}</td>
                     <td>
                       <PaymentBadge status={q.paymentStatus} />
