@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { EmptyRow, LockNotice, PageHeader } from "@/components/ui";
 import { apiFetch, errorText, formatCurrency, promptSignLink } from "@/lib/client";
-import { displayContractStatus } from "@/lib/contractStatus";
+import { displayContractStatus, isContentLocked } from "@/lib/contractStatus";
 import { useBusinessLocks } from "@/lib/useBusinessLocks";
 import type { ContractSummary } from "@/lib/types";
 
@@ -27,6 +27,17 @@ export function ContractsView() {
       (err) => setRows({ status: "error", message: errorText(err) }),
     );
   }, [locks]);
+
+  // 客戶已簽名的合約是正式文件，只能作廢、不能刪除（伺服器端也會擋）
+  async function remove(c: ContractSummary) {
+    if (!confirm(`確定刪除合約 ${c.contractNumber || `#${c.id}`}？此動作無法復原。`)) return;
+    try {
+      await apiFetch(`/api/contracts/${c.id}`, { method: "DELETE" });
+      setRows((r) => (r.status === "ok" ? { status: "ok", contracts: r.contracts.filter((x) => x.id !== c.id) } : r));
+    } catch (err) {
+      alert(errorText(err, "刪除失敗"));
+    }
+  }
 
   const header = (
     <PageHeader
@@ -91,20 +102,25 @@ export function ContractsView() {
                     </span>
                   </div>
                 </Link>
-                {c.status !== "作廢" && !c.customerSignedAt && (
-                  <div className="mt-2.5 border-t border-line pt-2.5">
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-sm w-full"
-                      onClick={async () => {
-                        await promptSignLink("contracts", c.id);
-                        apiFetch<ContractSummary[]>("/api/contracts").then(
-                          (contracts) => setRows({ status: "ok", contracts }),
-                          () => {},
-                        );
-                      }}
-                    >
-                      傳送簽署連結
+                {!isContentLocked(c) && (
+                  <div className="mt-2.5 flex gap-2 border-t border-line pt-2.5">
+                    {c.status !== "作廢" && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm flex-1"
+                        onClick={async () => {
+                          await promptSignLink("contracts", c.id);
+                          apiFetch<ContractSummary[]>("/api/contracts").then(
+                            (contracts) => setRows({ status: "ok", contracts }),
+                            () => {},
+                          );
+                        }}
+                      >
+                        傳送簽署連結
+                      </button>
+                    )}
+                    <button type="button" className="btn btn-danger btn-sm" onClick={() => remove(c)}>
+                      刪除
                     </button>
                   </div>
                 )}
@@ -138,7 +154,7 @@ export function ContractsView() {
             ) : rows.contracts.length === 0 ? (
               <EmptyRow colSpan={9}>尚無合約</EmptyRow>
             ) : (
-              // 整列可點擊進入詳情頁；傳送簽署連結按鈕用 stopPropagation 避免同時觸發
+              // 整列可點擊進入詳情頁；傳送簽署連結、刪除按鈕用 stopPropagation 避免同時觸發
               rows.contracts.map((c) => {
                 const status = displayContractStatus(c);
                 return (
@@ -174,6 +190,11 @@ export function ContractsView() {
                         }}
                       >
                         傳送簽署連結
+                      </button>
+                    )}{" "}
+                    {!isContentLocked(c) && (
+                      <button type="button" className="btn btn-danger btn-sm" onClick={() => remove(c)}>
+                        刪除
                       </button>
                     )}
                   </td>

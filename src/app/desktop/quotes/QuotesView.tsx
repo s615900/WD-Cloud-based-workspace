@@ -27,6 +27,7 @@ export function QuotesView() {
   const [payFilter, setPayFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [linkBusy, setLinkBusy] = useState<number | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState<number | null>(null);
 
   useEffect(() => {
     if (!locks || locks.quotes) return;
@@ -35,6 +36,19 @@ export function QuotesView() {
       (err) => setRows({ status: "error", message: errorText(err) }),
     );
   }, [locks]);
+
+  async function remove(q: QuoteSummary) {
+    const name = q.quoteNumber || `#${q.id}`;
+    if (!confirm(`確定刪除報價單 ${name}？此動作無法復原。\n（由這張報價單建立的合約、專案不會一起刪除）`)) return;
+    setDeleteBusy(q.id);
+    try {
+      await apiFetch(`/api/quotes/${q.id}`, { method: "DELETE" });
+      setRows((r) => (r.status === "ok" ? { status: "ok", quotes: r.quotes.filter((x) => x.id !== q.id) } : r));
+    } catch (err) {
+      alert(errorText(err, "刪除失敗"));
+    }
+    setDeleteBusy(null);
+  }
 
   if (locks?.quotes) {
     return (
@@ -148,6 +162,14 @@ export function QuotesView() {
                   >
                     傳送簽署連結
                   </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    disabled={deleteBusy === q.id}
+                    onClick={() => remove(q)}
+                  >
+                    刪除
+                  </button>
                 </div>
               </div>
             ))
@@ -182,7 +204,7 @@ export function QuotesView() {
               ) : filtered.length === 0 ? (
                 <EmptyRow colSpan={COLSPAN}>沒有符合的報價單</EmptyRow>
               ) : (
-                // 整列可點擊進入詳情頁；編輯、傳送簽署連結按鈕用 stopPropagation 避免同時觸發
+                // 整列可點擊進入詳情頁；編輯、傳送簽署連結、刪除按鈕用 stopPropagation 避免同時觸發
                 filtered.map((q) => (
                   <tr key={q.id} className="cursor-pointer" onClick={() => router.push(`/desktop/quotes/${q.id}`)}>
                     <td>
@@ -218,6 +240,14 @@ export function QuotesView() {
                         }}
                       >
                         傳送簽署連結
+                      </button>{" "}
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
+                        disabled={deleteBusy === q.id}
+                        onClick={() => remove(q)}
+                      >
+                        刪除
                       </button>
                     </td>
                   </tr>
