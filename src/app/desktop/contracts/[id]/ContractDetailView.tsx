@@ -12,6 +12,8 @@ import type { ContractDetail } from "@/lib/types";
 const orBlank = (v: string | undefined) => v || "（未填）";
 
 export function ContractDetailView({ id }: { id: string }) {
+  const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
   const [state, setState] = useState<
     { status: "loading" } | { status: "error"; message: string } | { status: "ok"; detail: ContractDetail }
   >({ status: "loading" });
@@ -26,6 +28,19 @@ export function ContractDetailView({ id }: { id: string }) {
   useEffect(load, [load]);
 
   const detail = state.status === "ok" ? state.detail : null;
+
+  async function remove() {
+    const name = detail?.contractNumber || `#${id}`;
+    if (!confirm(`確定刪除合約 ${name}？此動作無法復原。`)) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/contracts/${id}`, { method: "DELETE" });
+      router.push("/desktop/contracts");
+    } catch (err) {
+      alert(errorText(err, "刪除失敗"));
+      setDeleting(false);
+    }
+  }
 
   return (
     <>
@@ -42,6 +57,12 @@ export function ContractDetailView({ id }: { id: string }) {
               <Link className="btn btn-gold" href={`/desktop/contracts/${id}/edit`}>
                 編輯這筆合約
               </Link>
+            )}
+            {/* 客戶已簽名的合約是正式文件，只能作廢、不能刪除 */}
+            {detail && !isContentLocked(detail) && (
+              <button type="button" className="btn btn-danger" onClick={remove} disabled={deleting}>
+                {deleting ? "刪除中…" : "刪除"}
+              </button>
             )}
           </>
         }

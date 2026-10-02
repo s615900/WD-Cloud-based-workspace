@@ -228,6 +228,20 @@ function ClientModal({ client, onClose, onSaved }: { client: ClientItem | null; 
     }
   }
 
+  async function remove() {
+    if (!client) return;
+    if (!confirm(`確定刪除客戶「${client.name}」？此動作無法復原。\n（已建立的報價單、合約不會一起刪除）`)) return;
+    setSaving(true);
+    setMessage({ text: "刪除中…" });
+    try {
+      await apiFetch(`/api/clients/${client.id}`, { method: "DELETE" });
+      onSaved();
+    } catch (err) {
+      setMessage({ text: errorText(err, "刪除失敗"), kind: "error" });
+      setSaving(false);
+    }
+  }
+
   const text = (key: keyof ClientForm, label: string, extra?: React.InputHTMLAttributes<HTMLInputElement>, span2 = false) => (
     <div className={`form-field ${span2 ? "sm:col-span-2" : ""}`}>
       <label>{label}</label>
@@ -311,6 +325,11 @@ function ClientModal({ client, onClose, onSaved }: { client: ClientItem | null; 
 
         <Message state={message} />
         <ModalActions>
+          {client && (
+            <button type="button" className="btn btn-danger mr-auto" onClick={remove} disabled={saving}>
+              刪除客戶
+            </button>
+          )}
           <button type="button" className="btn btn-outline" onClick={onClose}>
             取消
           </button>

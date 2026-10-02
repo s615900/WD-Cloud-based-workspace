@@ -1,4 +1,4 @@
-import { ragicUpdate, PROJECT_FIELD, PROJECT_STATUSES, PROJECT_TYPES, SHEET } from "@/server/lib/quotationRagic";
+import { ragicDelete, ragicUpdate, PROJECT_FIELD, PROJECT_STATUSES, PROJECT_TYPES, SHEET } from "@/server/lib/quotationRagic";
 import { buildProjectCustomerFields, type ProjectBody } from "@/server/modules/projects";
 import { toRagicDate } from "@/server/modules/dates";
 import { errorMessage, json, lockedResponse, readBody } from "@/server/http";
@@ -35,5 +35,21 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/projects/[id]"
   } catch (err) {
     console.error("更新專案失敗:", err);
     return json({ success: false, error: errorMessage(err, "更新失敗") }, 500);
+  }
+}
+
+export async function DELETE(_req: Request, ctx: RouteContext<"/api/projects/[id]">) {
+  const locked = lockedResponse("projects");
+  if (locked) return locked;
+
+  const { id } = await ctx.params;
+  if (!/^\d+$/.test(id)) return json({ success: false, error: "id 格式錯誤" }, 400);
+
+  try {
+    await ragicDelete(SHEET.projects, id);
+    return json({ success: true });
+  } catch (err) {
+    console.error("刪除專案失敗:", err);
+    return json({ success: false, error: errorMessage(err, "刪除失敗") }, 500);
   }
 }

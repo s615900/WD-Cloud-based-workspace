@@ -1,4 +1,5 @@
 import {
+  ragicDelete,
   ragicGetOne,
   ragicUpdate,
   replaceQuoteItems,
@@ -92,5 +93,21 @@ export async function PATCH(req: Request, ctx: Ctx) {
   } catch (err) {
     console.error("更新報價單失敗:", err);
     return json({ success: false, error: errorMessage(err, "更新失敗") }, 500);
+  }
+}
+
+export async function DELETE(_req: Request, ctx: RouteContext<"/api/quotes/[id]">) {
+  const locked = lockedResponse("quotes");
+  if (locked) return locked;
+
+  const { id } = await ctx.params;
+  if (!/^\d+$/.test(id)) return json({ success: false, error: "id 格式錯誤" }, 400);
+
+  try {
+    await ragicDelete(SHEET.quotes, id);
+    return json({ success: true });
+  } catch (err) {
+    console.error("刪除報價單失敗:", err);
+    return json({ success: false, error: errorMessage(err, "刪除失敗") }, 500);
   }
 }

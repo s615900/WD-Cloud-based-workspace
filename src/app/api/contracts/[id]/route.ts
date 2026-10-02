@@ -1,4 +1,5 @@
 import {
+  ragicDelete,
   ragicGetOne,
   ragicUpdate,
   replaceContractItems,
@@ -88,5 +89,32 @@ export async function PATCH(req: Request, ctx: Ctx) {
   } catch (err) {
     console.error("更新合約失敗:", err);
     return json({ success: false, error: errorMessage(err, "更新失敗") }, 500);
+  }
+}
+
+export async function DELETE(_req: Request, ctx: RouteContext<"/api/contracts/[id]">) {
+  const locked = lockedResponse("contracts");
+  if (locked) return locked;
+
+  const { id } = await ctx.params;
+  if (!/^\d+$/.test(id)) return json({ success: false, error: "id 格式錯誤" }, 400);
+
+  // 客戶已簽名的合約是正式文件，不允許直接刪除，只能改成「作廢」保留紀錄
+  try {
+    const current = await ragicGetOne(SHEET.contracts, id);
+    if (isContentLocked({ customerSignedAt: str(current[CONTRACT_READ_FIELD.客戶簽署時間]) })) {
+      return json({ success: false, error: "客戶已簽名的合約不能刪除，請改用「作廢」" }, 409);
+    }
+  } catch (err) {
+    console.error("檢查合約簽署狀態失敗:", err);
+    return json({ success: false, error: errorMessage(err, "刪除失敗") }, 500);
+  }
+
+  try {
+    await ragicDelete(SHEET.contracts, id);
+    return json({ success: true });
+  } catch (err) {
+    console.error("刪除合約失敗:", err);
+    return json({ success: false, error: errorMessage(err, "刪除失敗") }, 500);
   }
 }

@@ -58,6 +58,15 @@ export function ProjectsView() {
     }
   }
 
+  async function removeProject(id: number) {
+    try {
+      await apiFetch(`/api/projects/${id}`, { method: "DELETE" });
+      setProjects((list) => list?.filter((p) => p.id !== id) ?? null);
+    } catch (err) {
+      alert(errorText(err, "刪除失敗"));
+    }
+  }
+
   const locked = !!locks?.projects;
   const cancelled = projects?.filter((p) => p.status === CANCEL_STATUS) ?? [];
 
@@ -111,7 +120,7 @@ export function ProjectsView() {
                         {status}（{cards.length}）
                       </h3>
                       {cards.map((p) => (
-                        <ProjectCard key={p.id} p={p} quoteNumber={quoteNumberOf(p)} onStatus={updateStatus} />
+                        <ProjectCard key={p.id} p={p} quoteNumber={quoteNumberOf(p)} onStatus={updateStatus} onDelete={removeProject} />
                       ))}
                     </div>
                   );
@@ -125,7 +134,7 @@ export function ProjectsView() {
               <summary className="cursor-pointer text-[13px] font-bold text-navy">已取消專案（{cancelled.length}）</summary>
               <div className="mt-2.5">
                 {cancelled.map((p) => (
-                  <ProjectCard key={p.id} p={p} quoteNumber={quoteNumberOf(p)} onStatus={updateStatus} cancelled />
+                  <ProjectCard key={p.id} p={p} quoteNumber={quoteNumberOf(p)} onStatus={updateStatus} onDelete={removeProject} cancelled />
                 ))}
               </div>
             </details>
@@ -153,11 +162,13 @@ function ProjectCard({
   quoteNumber,
   cancelled,
   onStatus,
+  onDelete,
 }: {
   p: ProjectItem;
   quoteNumber: string;
   cancelled?: boolean;
   onStatus: (id: number, status: string) => void;
+  onDelete: (id: number) => void;
 }) {
   return (
     <div
@@ -205,6 +216,15 @@ function ProjectCard({
           設為取消
         </button>
       )}
+      <button
+        type="button"
+        className="mt-1 ml-3 cursor-pointer text-xs text-danger underline"
+        onClick={() => {
+          if (confirm(`確定刪除專案「${quoteNumber}　${p.clientName || ""}」？此動作無法復原。`)) onDelete(p.id);
+        }}
+      >
+        刪除
+      </button>
     </div>
   );
 }

@@ -41,6 +41,8 @@ function calcAmounts(detail: QuoteDetail) {
 const orBlank = (v: string | undefined, fallback = "（未填）") => v || fallback;
 
 export function QuoteDetailView({ id }: { id: string }) {
+  const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
   const [state, setState] = useState<{ status: "loading" } | { status: "error"; message: string } | { status: "ok"; detail: QuoteDetail }>(
     { status: "loading" },
   );
@@ -56,6 +58,19 @@ export function QuoteDetailView({ id }: { id: string }) {
 
   const detail = state.status === "ok" ? state.detail : null;
 
+  async function remove() {
+    const name = detail?.quoteNumber || `#${id}`;
+    if (!confirm(`確定刪除報價單 ${name}？此動作無法復原。\n（由這張報價單建立的合約、專案不會一起刪除）`)) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/quotes/${id}`, { method: "DELETE" });
+      router.push("/desktop/quotes");
+    } catch (err) {
+      alert(errorText(err, "刪除失敗"));
+      setDeleting(false);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -69,6 +84,11 @@ export function QuoteDetailView({ id }: { id: string }) {
             <Link className="btn btn-gold" href={`/desktop/quotes/${id}/edit`}>
               編輯這筆報價單
             </Link>
+            {detail && (
+              <button type="button" className="btn btn-danger" onClick={remove} disabled={deleting}>
+                {deleting ? "刪除中…" : "刪除"}
+              </button>
+            )}
           </>
         }
       />

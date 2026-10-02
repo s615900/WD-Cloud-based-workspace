@@ -1,4 +1,4 @@
-import { ragicUpdate, SHEET } from "@/server/lib/quotationRagic";
+import { ragicDelete, ragicUpdate, SHEET } from "@/server/lib/quotationRagic";
 import {
   buildClientFields,
   validateClientType,
@@ -26,5 +26,21 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/clients/[id]">
   } catch (err) {
     console.error("更新客戶失敗:", err);
     return json({ success: false, error: errorMessage(err, "更新失敗") }, 500);
+  }
+}
+
+export async function DELETE(_req: Request, ctx: RouteContext<"/api/clients/[id]">) {
+  const locked = lockedResponse("clients");
+  if (locked) return locked;
+
+  const { id } = await ctx.params;
+  if (!/^\d+$/.test(id)) return json({ success: false, error: "id 格式錯誤" }, 400);
+
+  try {
+    await ragicDelete(SHEET.clients, id);
+    return json({ success: true });
+  } catch (err) {
+    console.error("刪除客戶失敗:", err);
+    return json({ success: false, error: errorMessage(err, "刪除失敗") }, 500);
   }
 }
