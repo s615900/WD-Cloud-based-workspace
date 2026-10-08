@@ -192,3 +192,24 @@ export interface FreeSlot {
 
 export const PAYMENT_STATUSES = ["未付款", "已付訂金", "部分付款", "已付款", "已取消"] as const;
 export const CONTRACT_STATUSES = ["草稿", "已發送", "已簽約", "已結案", "作廢"] as const;
+
+// ── 人事假勤（/api/hr/*） ─────────────────────────────────────
+
+export interface EmployeeItem {
+  id: number;
+  name: string;
+  hireDate: string; // yyyy-MM-dd
+  status: "在職" | "離職";
+  leftDate: string;
+  note: string;
+}
+
+export interface LeaveItem {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  type: string;
+  date: string; // yyyy-MM-dd
+  hours: number;
+  note: string;
+}

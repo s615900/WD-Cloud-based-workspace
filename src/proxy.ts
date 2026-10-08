@@ -29,5 +29,6 @@ export const config = {
     "/api/contracts/:path*",
     "/api/projects/:path*",
     "/api/roster/:path*",
+    "/api/hr/:path*",
   ],
 };

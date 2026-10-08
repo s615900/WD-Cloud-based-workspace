@@ -27,6 +27,10 @@ const GROUPS: { label: string; items: { href: string; label: string; lockKey?: B
     ],
   },
   {
+    label: "人事",
+    items: [{ href: "/desktop/hr", label: "人事假勤" }],
+  },
+  {
     label: "系統",
     items: [{ href: "/desktop/settings", label: "設定" }],
   },
