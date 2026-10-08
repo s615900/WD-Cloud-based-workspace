@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test src/server/ragic/*.test.ts",
+    "test": "node --test src/server/ragic/*.test.ts src/lib/*.test.ts",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
