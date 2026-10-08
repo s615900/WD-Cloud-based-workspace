@@ -149,7 +149,7 @@ export function SignDocument({ kind, token }: { kind: Kind; token: string }) {
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4 pt-[max(16px,env(safe-area-inset-top))]">
       <div className="mx-auto max-w-[640px]">
         <header className="mb-4 rounded-card bg-navy p-5 text-white">
           <h1 className="mb-1 text-xl font-bold">{title}</h1>

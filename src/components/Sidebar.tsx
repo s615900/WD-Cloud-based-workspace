@@ -69,7 +69,7 @@ export function Sidebar() {
       />
 
       <aside
-        className={`sticky top-0 h-screen w-[248px] flex-none overflow-y-auto bg-navy px-4 py-6 text-white max-lg:fixed max-lg:left-0 max-lg:z-[80] max-lg:shadow-[0_0_24px_rgba(0,0,0,0.25)] max-lg:transition-transform ${
+        className={`sticky top-0 h-screen w-[248px] flex-none overflow-y-auto bg-navy px-4 py-6 max-lg:pt-[max(24px,env(safe-area-inset-top))] max-lg:pb-[max(24px,env(safe-area-inset-bottom))] text-white max-lg:fixed max-lg:left-0 max-lg:z-[80] max-lg:shadow-[0_0_24px_rgba(0,0,0,0.25)] max-lg:transition-transform ${
           open ? "" : "max-lg:-translate-x-full"
         }`}
       >

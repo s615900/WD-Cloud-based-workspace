@@ -197,7 +197,7 @@ export function BookingList() {
       )}
 
       <div
-        className={`pointer-events-none fixed bottom-7 left-1/2 z-50 max-w-[calc(100%-40px)] -translate-x-1/2 rounded-full px-5 py-3 text-center text-[13.5px] font-semibold text-white shadow-[0_4px_14px_rgba(11,61,92,0.3)] transition-opacity ${
+        className={`pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+28px)] left-1/2 z-50 max-w-[calc(100%-40px)] -translate-x-1/2 rounded-full px-5 py-3 text-center text-[13.5px] font-semibold text-white shadow-[0_4px_14px_rgba(11,61,92,0.3)] transition-opacity ${
           toast ? "opacity-100" : "opacity-0"
         } ${toast?.error ? "bg-[#D64545]" : "bg-navy"}`}
       >

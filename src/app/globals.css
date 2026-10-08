@@ -34,6 +34,12 @@
 @layer base {
   body {
     @apply bg-page font-sans text-ink antialiased;
+    /* iPhone 全螢幕（加入主畫面）時，左右瀏海與底部 Home 橫條不要蓋到內容。
+       頂部不在這裡處理：各頁頁首（Sidebar 手機頂列、PublicHeader…）自己用 safe-area-inset-top 墊高，
+       才能讓深藍背景延伸到狀態列後面。 */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
   }
   h3 {
     @apply mb-3 text-[15px] font-bold text-navy;
