@@ -55,6 +55,8 @@ export interface BotRecord {
   type: string;
   content: string;
   matched?: boolean;
+  // 到期日（yyyy-MM-dd），只有桌面版新增待辦時會帶
+  dueDate?: string;
 }
 
 export interface RagicRecord {
@@ -64,6 +66,7 @@ export interface RagicRecord {
   狀態: string;
   建立時間: string;
   截止日期: string;
+  到期日?: string;
   預約人姓名?: string;
   預約狀態?: string;
   預約時間戳記?: string;

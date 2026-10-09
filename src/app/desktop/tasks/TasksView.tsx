@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EmptyRow, Message, Modal, ModalActions, PageHeader, type MessageState } from "@/components/ui";
 import { apiFetch, errorText, sendJson } from "@/lib/client";
 import type { TaskListItem } from "@/lib/types";
@@ -40,6 +40,22 @@ export function TasksView() {
 
   // 排班行程（/ragicforms21/8）在這頁唯讀，點「檢視」直接導去行事曆對應日期；
   // 只有待辦（/ragicforms21/1）才會開編輯彈窗。
+  // 推播通知帶 ?id=123&src=todo|schedule：資料載入後自動開啟那一筆（只開一次）
+  const deepLinkDone = useRef(false);
+  useEffect(() => {
+    if (deepLinkDone.current || rows.status !== "ok") return;
+    const params = new URLSearchParams(window.location.search);
+    const id = Number(params.get("id"));
+    if (!params.get("id") || !Number.isFinite(id)) return;
+    deepLinkDone.current = true;
+    const src = params.get("src") === "schedule" ? "schedule" : "todo";
+    const hit = rows.tasks.find((t) => t.id === id && (t.source ?? "todo") === src);
+    // 找不到（已刪除或已完成而被篩掉）就維持原本的清單畫面
+    if (hit) openItem(hit);
+    // openItem 只用到 router／setEditing，不需要列為依賴
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
   function openItem(t: TaskListItem) {
     if (t.source === "schedule") {
       // createdAt 對排班行程來說就是「yyyy/mm/dd HH:mm:00」，取前 10 碼即可
@@ -117,7 +133,7 @@ export function TasksView() {
               </div>
               <div className="font-semibold">{t.content}</div>
               <div className="mt-1 text-xs text-muted">
-                {t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : "（未排定）"}　建立 {t.createdAt}
+                {t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : "（未排定）"}　建立 {t.createdAt}{t.dueDate ? `　到期 ${t.dueDate}` : ""}
               </div>
             </button>
           ))
@@ -155,7 +171,9 @@ export function TasksView() {
                     <span className={`badge ${t.type === "行程" ? "badge-teal" : "badge-muted"}`}>{labelForType(t.type)}</span>
                   </td>
                   <td>{t.content}</td>
-                  <td className="whitespace-nowrap">{t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : "（未排定）"}</td>
+                  <td className="whitespace-nowrap">
+                    {t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : t.dueDate ? `到期 ${t.dueDate}` : "（未排定）"}
+                  </td>
                   <td className="form-hint whitespace-nowrap">{t.createdAt}</td>
                   <td>
                     <button type="button" className="btn btn-outline btn-sm">
@@ -185,6 +203,7 @@ export function TasksView() {
 
 function EditTaskModal({ task, onClose, onSaved }: { task: TaskListItem; onClose: () => void; onSaved: () => void }) {
   const [status, setStatus] = useState(task.status === "完成" ? "完成" : "準備中");
+  const [dueDate, setDueDate] = useState(task.dueDate ?? "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<MessageState>({ text: "" });
 
@@ -193,7 +212,9 @@ function EditTaskModal({ task, onClose, onSaved }: { task: TaskListItem; onClose
     setSaving(true);
     setMessage({ text: "儲存中…" });
     try {
-      await sendJson(`/api/tasks/${task.id}`, "PATCH", { status, source: "todo" });
+      // 到期日沒改就不送，避免 Ragic 還沒建「到期日」欄位時連狀態都存不了
+      const dueChanged = dueDate !== (task.dueDate ?? "");
+      await sendJson(`/api/tasks/${task.id}`, "PATCH", { status, source: "todo", ...(dueChanged ? { dueDate } : {}) });
       onSaved();
     } catch (err) {
       setMessage({ text: errorText(err, "儲存失敗"), kind: "error" });
@@ -223,6 +244,10 @@ function EditTaskModal({ task, onClose, onSaved }: { task: TaskListItem; onClose
               <option value="準備中">準備中</option>
               <option value="完成">完成</option>
             </select>
+          </div>
+          <div className="form-field sm:col-span-2">
+            <label htmlFor="task-due">到期日（選填，到期當天早上 9 點推播提醒）</label>
+            <input id="task-due" type="date" className="input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </div>
         </div>
         <Message state={message} />
