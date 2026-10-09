@@ -90,7 +90,7 @@ export function CalendarView({ initialDate }: { initialDate: string | null }) {
               onClick={() => {
                 // 開放預約：直接開啟設定裡的預約連結
                 if (config?.bookingUrl) window.open(config.bookingUrl, "_blank", "noopener");
-                else alert("尚未設定預約連結，請先在下方「空檔推算規則」填入預約連結。");
+                else alert("尚未設定預約連結，請先在電腦版行事曆最下方的「空檔推算規則」填入預約連結。");
               }}
             >
               開放預約
@@ -215,24 +215,27 @@ export function CalendarView({ initialDate }: { initialDate: string | null }) {
               onDateClick={onDateClick}
             />
           </section>
-
-          {config ? (
-            <ConfigSection
-              config={config}
-              onSaved={(c) => {
-                setConfig(c);
-                refresh();
-              }}
-            />
-          ) : (
-            <section className="card">
-              <h3>空檔推算規則</h3>
-              <p className="empty-hint">{configError ? `無法載入（${configError}）` : "載入中…"}</p>
-            </section>
-          )}
         </div>
 
         <DayPanel date={selectedDate} version={version} onChanged={refresh} />
+      </div>
+
+      {/* 空檔推算規則：放在整頁最下面；手機（< 768px）不顯示，要調整請用平板或電腦 */}
+      <div className="mt-5 max-md:hidden">
+        {config ? (
+          <ConfigSection
+            config={config}
+            onSaved={(c) => {
+              setConfig(c);
+              refresh();
+            }}
+          />
+        ) : (
+          <section className="card">
+            <h3>空檔推算規則</h3>
+            <p className="empty-hint">{configError ? `無法載入（${configError}）` : "載入中…"}</p>
+          </section>
+        )}
       </div>
 
       {modal?.kind === "template" && (
