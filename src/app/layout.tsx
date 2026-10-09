@@ -11,11 +11,13 @@ export const metadata: Metadata = {
   // apple-icon.png 就是 iPhone「加入主畫面」用的 apple-touch-icon，180x180）
   manifest: "/manifest.json",
   applicationName: "生活記事",
-  // iPhone「加入主畫面」：全螢幕開啟、狀態列透明（深藍頁首延伸到最上方）、主畫面圖示下的名稱
+  // iPhone「加入主畫面」：全螢幕開啟、主畫面圖示下的名稱。
+  // 狀態列用 black（黑底白字、內容從狀態列下方開始）：black-translucent 會讓頁面延伸到狀態列後面，
+  // iOS 會在那一塊疊一層半透明漸層，顏色與時間字色都無法用網頁樣式控制。
   appleWebApp: {
     capable: true,
     title: "生活記事",
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "black",
   },
   // 不要把頁面上的數字自動變成電話連結
   formatDetection: { telephone: false },

@@ -31,30 +31,6 @@
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* iPhone「加入主畫面」的 App：狀態列區域的半透明漸層，顏色是 iOS 依頁面最底層（html）的背景色決定的。
-   底層是淺灰藍時漸層偏淺、時間與電量變黑字；底層與頂部都改成深藍，漸層就會是深藍、字是白色。
-   只在主畫面 App（standalone）生效，一般瀏覽器與電腦版不受影響。 */
-@media (display-mode: standalone) {
-  html {
-    background-color: var(--color-navy);
-  }
-  body {
-    min-height: 100dvh;
-  }
-  /* 瀏海／動態島／狀態列那一條，固定蓋一條深藍，不論頁面有沒有深藍頁首都一致 */
-  body::before {
-    content: "";
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: env(safe-area-inset-top);
-    background-color: var(--color-navy);
-    z-index: 9999;
-    pointer-events: none;
-  }
-}
-
 @layer base {
   body {
     @apply bg-page font-sans text-ink antialiased;
