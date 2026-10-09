@@ -1,6 +1,6 @@
 // 診斷用測試頁各自的 manifest：start_url 指向自己，加入主畫面後才會開到同一個測試頁
 export function generateStaticParams() {
-  return ["black", "default", "translucent"].map((style) => ({ style }));
+  return ["black", "default", "translucent", "navy"].map((style) => ({ style }));
 }
 
 export async function GET(_req: Request, ctx: RouteContext<"/pwa-test/[style]/manifest.json">) {

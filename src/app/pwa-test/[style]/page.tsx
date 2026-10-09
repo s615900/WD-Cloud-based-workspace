@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Probe } from "./Probe";
 
-const STYLES = { black: "black", default: "default", translucent: "black-translucent" } as const;
+const STYLES = { black: "black", default: "default", translucent: "black-translucent", navy: "black" } as const;
 type StyleKey = keyof typeof STYLES;
 
 export function generateStaticParams() {
@@ -25,5 +25,5 @@ export async function generateMetadata({ params }: PageProps<"/pwa-test/[style]"
 export default async function PwaTestPage({ params }: PageProps<"/pwa-test/[style]">) {
   const { style } = await params;
   if (!(style in STYLES)) notFound();
-  return <Probe style={style} meta={STYLES[style as StyleKey]} />;
+  return <Probe style={style} meta={STYLES[style as StyleKey]} navyBg={style === "navy"} />;
 }

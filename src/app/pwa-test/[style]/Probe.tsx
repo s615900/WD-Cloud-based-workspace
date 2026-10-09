@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 // 讀出這個環境實際的狀態：是不是主畫面 App、上方安全區域幾 px、畫面高度
-export function Probe({ style, meta }: { style: string; meta: string }) {
+export function Probe({ style, meta, navyBg }: { style: string; meta: string; navyBg?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [info, setInfo] = useState<Record<string, string>>({});
 
@@ -25,6 +25,7 @@ export function Probe({ style, meta }: { style: string; meta: string }) {
 
   return (
     <div className="min-h-screen bg-white">
+      {navyBg && <style>{"html,body{background:#0B3D5C !important}"}</style>}
       <div ref={ref} className="bg-navy text-white" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="px-4 py-3 text-base font-bold">這是深藍頂列（測試 {style}）</div>
       </div>
@@ -53,6 +54,7 @@ export function Probe({ style, meta }: { style: string; meta: string }) {
           <Link className="mx-1 underline" href="/pwa-test/black">black</Link>
           <Link className="mx-1 underline" href="/pwa-test/default">default</Link>
           <Link className="mx-1 underline" href="/pwa-test/translucent">translucent</Link>
+          <Link className="mx-1 underline" href="/pwa-test/navy">navy</Link>
         </p>
       </div>
     </div>
