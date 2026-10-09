@@ -138,6 +138,8 @@ export interface TaskListItem {
   status: string;
   createdAt: string;
   source?: "todo" | "schedule";
+  // 待辦的到期日（yyyy-MM-dd），沒設定是 null；只有待辦（source: "todo"）會有
+  dueDate?: string | null;
 }
 
 export interface ScheduleItem {

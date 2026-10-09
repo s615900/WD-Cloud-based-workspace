@@ -20,7 +20,19 @@ const FIELD_ID = {
   狀態: "1001273",
   建立時間: "1001274",
   截止日期: "1001226",
+  // 待辦的到期日（Ragic 日期欄位）。要先在 Ragic 待辦表（/ragicforms21/1）新增「到期日」日期欄位，
+  // 再把欄位編號填在這裡；空字串＝尚未設定，所有讀寫到期日的地方都會略過或回報尚未設定。
+  到期日: "1001486",
 } as const;
+
+export function dueDateConfigured(): boolean {
+  return (FIELD_ID.到期日 as string) !== "";
+}
+
+// yyyy-MM-dd → Ragic 的 yyyy/MM/dd
+const toSlash = (ymd: string) => ymd.replaceAll("-", "/");
+// 到期日一直被隱藏規則（截止日期＝建立後 14 天）擋掉會看不到，所以截止日期取「兩者較晚的一天」
+const laterDate = (a: string, b: string) => (a >= b ? a : b);
 
 function getEnv(key: string): string {
   const val = process.env[key];
@@ -81,13 +93,17 @@ export async function saveRecordToRagic(
   const createdDatePart = createdAt.split(" ")[0] ?? createdAt;
 
   // POST body 要用 x-www-form-urlencoded，欄位用數字編號（Ragic 不吃 JSON body 或中文欄位名稱）
+  const defaultDeadline = addDaysToRagicDate(createdDatePart, DEFAULT_DEADLINE_DAYS);
   const body = new URLSearchParams({
     [FIELD_ID.使用者ID]: userId,
     [FIELD_ID.類型]: record.type,
     [FIELD_ID.內容文字]: record.content,
     [FIELD_ID.建立時間]: createdAt,
-    [FIELD_ID.截止日期]: addDaysToRagicDate(createdDatePart, DEFAULT_DEADLINE_DAYS),
+    [FIELD_ID.截止日期]: record.dueDate && dueDateConfigured() ? laterDate(defaultDeadline, toSlash(record.dueDate)) : defaultDeadline,
   });
+  if (record.dueDate && dueDateConfigured()) {
+    body.set(FIELD_ID.到期日, toSlash(record.dueDate));
+  }
 
   const defaultStatus = DEFAULT_STATUS_BY_TYPE[record.type];
   if (defaultStatus) {
@@ -294,6 +310,8 @@ export interface TaskListItem {
   source: "todo" | "schedule";
   sheetId: "/ragicforms21/1" | "/ragicforms21/8";
   recordId: number;
+  // 待辦的到期日（yyyy-MM-dd）；行程與沒設定的待辦是 null
+  dueDate?: string | null;
 }
 
 // 把單筆 /ragicforms21/1 紀錄（備忘，或圖片等其他非行程非空檔的殘留類型）轉成
@@ -313,6 +331,7 @@ function toTaskListItem(r: RagicRecord): TaskListItem {
     date: null,
     createdAt: r["建立時間"],
     source: "todo",
+    dueDate: r["到期日"]?.trim() ? r["到期日"].trim().replaceAll("/", "-") : null,
     sheetId: "/ragicforms21/1",
     recordId: r["_ragicId"],
   };
@@ -380,19 +399,27 @@ export async function queryTasksForApi(opts: {
   return items.sort((a, b) => taskSortTimestamp(b) - taskSortTimestamp(a));
 }
 
-// 更新單筆紀錄的狀態（例如從「準備中」改成「完成」）
+// 更新單筆待辦（/ragicforms21/1）：狀態、到期日可以只改其中一個。
+// dueDate："yyyy-MM-dd" 設定到期日，"" 清除；existingDeadline 是這筆目前的「截止日期」（yyyy/MM/dd），
+// 設定到期日時一併把截止日期延到不早於到期日，避免待辦在到期日前就被隱藏規則擋掉。
 // Ragic 更新單筆紀錄的網址規則：在原本的表單網址後面加上 /<紀錄編號>
-export async function updateRecordStatusInRagic(
+export async function updateTaskInRagic(
   ragicId: number | string,
-  status: string,
+  changes: { status?: string; dueDate?: string },
+  existingDeadline = "",
 ): Promise<unknown> {
   const base = getEnv("RAGIC_BASE_URL");
   const apiKey = getEnv("RAGIC_API_KEY");
   const url = `${base}/${ragicId}?api&APIKey=${encodeURIComponent(apiKey)}`;
 
-  const body = new URLSearchParams({
-    [FIELD_ID.狀態]: status,
-  });
+  const body = new URLSearchParams();
+  if (changes.status !== undefined) body.set(FIELD_ID.狀態, changes.status);
+  if (changes.dueDate !== undefined) {
+    body.set(FIELD_ID.到期日, changes.dueDate ? toSlash(changes.dueDate) : "");
+    if (changes.dueDate && existingDeadline) {
+      body.set(FIELD_ID.截止日期, laterDate(existingDeadline, toSlash(changes.dueDate)));
+    }
+  }
 
   const response = await fetch(url, {
     method: "POST",
@@ -402,10 +429,15 @@ export async function updateRecordStatusInRagic(
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Ragic 更新狀態失敗: ${response.status} ${errText}`);
+    throw new Error(`Ragic 存檔失敗: ${response.status} ${errText}`);
   }
 
   return response.json();
+}
+
+// 只改狀態（LINE「完成」指令等舊呼叫端用）
+export function updateRecordStatusInRagic(ragicId: number | string, status: string): Promise<unknown> {
+  return updateTaskInRagic(ragicId, { status });
 }
 
 // ────────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui";
 import { apiFetch, errorText } from "@/lib/client";
+import { PushCard } from "./PushCard";
 
 interface DesktopSettings {
   userId: string | null;
@@ -42,6 +43,8 @@ export function SettingsView() {
           <p className="empty-hint">載入中…</p>
         )}
       </div>
+
+      <PushCard />
 
       <div className="card">
         <h3>外部服務連線</h3>

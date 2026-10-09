@@ -4,7 +4,7 @@ import { queryTasksForApi, saveRecordToRagic } from "@/server/bot/ragic";
 import { createSchedule } from "@/server/ragic/schedule";
 import { addEventToCalendar } from "@/server/bot/calendar";
 import { isValidTaskType } from "@/server/modules/tasks";
-import { addDefaultDuration } from "@/server/modules/dates";
+import { addDefaultDuration, DATE_RE } from "@/server/modules/dates";
 import { errorMessage, json, readBody } from "@/server/http";
 
 const DATE_MMDD_RE = /^(\d{1,2})\/(\d{1,2})$/;
@@ -41,7 +41,7 @@ function mmddToIsoDate(mmdd: string): string | null {
 }
 
 export async function POST(req: Request) {
-  const body = await readBody<{ type?: unknown; content?: unknown; date?: unknown; time?: unknown }>(req);
+  const body = await readBody<{ type?: unknown; content?: unknown; date?: unknown; time?: unknown; dueDate?: unknown }>(req);
 
   if (!isValidTaskType(body.type)) {
     return json({ success: false, error: "type 必須是 行程 或 備忘" }, 400);
@@ -89,7 +89,10 @@ export async function POST(req: Request) {
   }
 
   try {
-    await saveRecordToRagic(userId, { type: body.type, content: title });
+    if (body.dueDate !== undefined && (typeof body.dueDate !== "string" || (body.dueDate !== "" && !DATE_RE.test(body.dueDate)))) {
+      return json({ success: false, error: "dueDate 格式須為 yyyy-MM-dd" }, 400);
+    }
+    await saveRecordToRagic(userId, { type: body.type, content: title, dueDate: body.dueDate || undefined });
     return json({ success: true });
   } catch (err) {
     console.error("新增事項存檔失敗:", err);

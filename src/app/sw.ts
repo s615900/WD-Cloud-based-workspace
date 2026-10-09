@@ -60,3 +60,52 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// ── Web Push ────────────────────────────────────────────────────
+// iOS 規定：收到 push 一定要顯示通知（不能發靜默推播），否則系統會撤銷訂閱。
+interface PushData {
+  title?: string;
+  body?: string;
+  url?: string;
+  tag?: string;
+}
+
+self.addEventListener("push", (event) => {
+  let data: PushData = {};
+  try {
+    data = event.data?.json() ?? {};
+  } catch {
+    data = { body: event.data?.text() };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "生活記事", {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: data.tag,
+      data: { url: data.url || "/desktop" },
+    }),
+  );
+});
+
+// 點擊通知：App 已經開著就切過去並導到對應頁面，沒開就開新視窗
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL((event.notification.data as { url?: string } | null)?.url || "/desktop", self.location.origin).href;
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = windows.find((c) => new URL(c.url).origin === self.location.origin);
+      if (existing) {
+        await existing.focus();
+        try {
+          await existing.navigate(target);
+          return;
+        } catch {
+          // 有些瀏覽器不允許 navigate，退回開新視窗
+        }
+      }
+      await self.clients.openWindow(target);
+    })(),
+  );
+});
