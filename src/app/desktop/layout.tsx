@@ -10,7 +10,7 @@ export default async function DesktopLayout({ children }: LayoutProps<"/desktop"
   return (
     <div className="flex min-h-screen max-lg:min-h-0 max-lg:flex-col">
       <Sidebar />
-      <main className="w-full max-w-[1280px] min-w-0 flex-1 px-10 pt-8 pb-16 max-md:px-4 md:max-lg:px-6 max-lg:pt-5 max-lg:pb-10">
+      <main className="w-full max-w-[1280px] min-w-0 flex-1 px-10 pt-8 pb-16 max-md:px-4 md:max-lg:px-6 max-lg:pt-3 max-lg:pb-10">
         {children}
       </main>
     </div>

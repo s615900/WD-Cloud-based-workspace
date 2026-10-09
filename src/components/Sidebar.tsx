@@ -49,16 +49,16 @@ export function Sidebar() {
   return (
     <>
       {/* 手機／平板頂列（漢堡選單），桌面寬度隱藏 */}
-      <div className="sticky top-0 z-[60] hidden items-center gap-3 bg-navy px-4 py-3 pt-[max(12px,env(safe-area-inset-top))] text-white max-lg:flex">
+      <div className="sticky top-0 z-[60] hidden items-center gap-3 bg-navy px-4 pb-2 pt-[max(8px,env(safe-area-inset-top))] text-white max-lg:flex">
         <button
           type="button"
           aria-label="開啟選單"
-          className="flex size-9 cursor-pointer items-center justify-center rounded-lg bg-white/12 text-lg"
+          className="flex size-8 cursor-pointer items-center justify-center rounded-lg bg-white/12 text-base"
           onClick={() => setOpen(true)}
         >
           ☰
         </button>
-        <span className="text-base font-bold">個人工作台</span>
+        <span className="text-[15px] font-bold">個人工作台</span>
       </div>
 
       <div
