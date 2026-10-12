@@ -313,7 +313,7 @@ export function PlanView() {
                 <thead>
                   <tr>
                     <th>班別</th>
-                    <th>次數</th>
+                    <th>班數</th>
                     <th>工時（小時）</th>
                     <th>薪資</th>
                   </tr>
