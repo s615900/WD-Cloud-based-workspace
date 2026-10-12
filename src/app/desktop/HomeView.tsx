@@ -7,7 +7,16 @@ import { addDays, addMonths, apiFetch, errorText, formatCurrency, todayISO, week
 import { formatHours, paidMinutes, shiftPay } from "@/lib/payroll";
 import { useBusinessLocks } from "@/lib/useBusinessLocks";
 import { displayContractStatus } from "@/lib/contractStatus";
-import type { ContractSummary, PlanEntry, QuoteSummary, RosterTemplate, ScheduleItem } from "@/lib/types";
+import { PLAN_EXCLUDED_TEMPLATES } from "@/lib/plan";
+import type {
+  ContractSummary,
+  PlanEntry,
+  ProjectItem,
+  QuoteSummary,
+  RosterEntry,
+  RosterTemplate,
+  ScheduleItem,
+} from "@/lib/types";
 
 type Load<T> = { status: "loading" } | { status: "error"; message: string } | { status: "ok"; data: T };
 
@@ -245,11 +254,107 @@ function usePlanRange(from: string, to: string): PlanRange {
   return state && state.key === key ? state.result : { status: "loading" };
 }
 
-// 底部週班表：7 天的預排班（班別、時間、工時）＋本週合計
+interface DayItem {
+  key: string;
+  label: string;
+  sub: string;
+  // event = 行事曆行程（深藍點）；biz = 接案（金色標籤）
+  kind: "event" | "biz";
+  color?: string;
+  tag?: string;
+}
+
+const ymdOf = (v: string) => (v || "").replaceAll("/", "-").slice(0, 10);
+
+// 週班表每天上方要顯示的「行事曆行程」與「接案」：
+// 行程＝行事曆的個人行程／客戶預約，以及只存在行事曆、不列入預排班的班別（拍攝賽事、夜班）；
+// 預排班已經排的班別不在這裡重複顯示。接案＝專案拍攝日、報價日期、合約日期（遵守各模組鎖定）。
+function useWeekExtras(from: string, to: string, locks: ReturnType<typeof useBusinessLocks>): Map<string, DayItem[]> {
+  const [events, setEvents] = useState<{ key: string; items: RosterEntry[] } | null>(null);
+  const [biz, setBiz] = useState<{ date: string; item: DayItem }[]>([]);
+  const key = `${from}|${to}`;
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch<RosterEntry[]>(`/api/roster/schedule?from=${from}&to=${to}`).then(
+      (items) => alive && setEvents({ key, items }),
+      () => alive && setEvents({ key, items: [] }),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [from, to, key]);
+
+  useEffect(() => {
+    if (!locks) return;
+    let alive = true;
+    const collected: { date: string; item: DayItem }[] = [];
+    const add = (date: string, item: DayItem) => date && collected.push({ date: ymdOf(date), item });
+    // 單一來源失敗就忽略，其他來源照常顯示
+    Promise.all([
+      locks.projects
+        ? null
+        : apiFetch<ProjectItem[]>("/api/projects")
+            .then((list) =>
+              list.forEach((p) =>
+                add(p.shootDate, {
+                  key: `p${p.id}`,
+                  tag: "拍攝",
+                  kind: "biz",
+                  label: p.clientName || p.projectCode || `專案 #${p.id}`,
+                  sub: p.projectType,
+                }),
+              ),
+            )
+            .catch(() => {}),
+      locks.quotes
+        ? null
+        : apiFetch<QuoteSummary[]>("/api/quotes")
+            .then((list) =>
+              list.forEach((q) =>
+                add(q.quoteDate, { key: `q${q.id}`, tag: "報價", kind: "biz", label: q.clientName || `客戶 #${q.clientId}`, sub: "" }),
+              ),
+            )
+            .catch(() => {}),
+      locks.contracts
+        ? null
+        : apiFetch<ContractSummary[]>("/api/contracts")
+            .then((list) =>
+              list.forEach((c) => add(c.quoteDate, { key: `c${c.id}`, tag: "合約", kind: "biz", label: c.clientName || "—", sub: "" })),
+            )
+            .catch(() => {}),
+    ]).then(() => alive && setBiz(collected));
+    return () => {
+      alive = false;
+    };
+  }, [locks]);
+
+  const map = new Map<string, DayItem[]>();
+  const push = (date: string, item: DayItem) => map.set(date, [...(map.get(date) ?? []), item]);
+  if (events && events.key === key) {
+    for (const e of events.items) {
+      if (e.status === "取消") continue;
+      if (e.kind === "班別" && !PLAN_EXCLUDED_TEMPLATES.has(e.title)) continue;
+      push(e.date, {
+        key: `e${e.id}`,
+        kind: "event",
+        label: e.title.split("\n")[0] ?? e.title,
+        sub: e.allDay ? "全天" : `${e.start}–${e.end}`,
+        color: e.color,
+      });
+    }
+  }
+  for (const { date, item } of biz) if (date >= from && date <= to) push(date, item);
+  return map;
+}
+
+// 底部週班表：每天上方是行事曆行程與接案，下方是預排班（班別、時間、工時），標題有本週合計
 function WeekRoster({ today }: { today: string }) {
+  const locks = useBusinessLocks();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today));
   const weekEnd = addDays(weekStart, 6);
   const plan = usePlanRange(weekStart, weekEnd);
+  const extras = useWeekExtras(weekStart, weekEnd, locks);
   const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const entries = plan.status === "ok" ? plan.entries : [];
   const totalMin = entries.reduce((sum, e) => sum + paidMinutes(e), 0);
@@ -302,8 +407,25 @@ function WeekRoster({ today }: { today: string }) {
                   </span>
                   {dayMin > 0 && <span className="font-normal text-muted">{formatHours(dayMin)}h</span>}
                 </div>
+                {(extras.get(date) ?? []).map((x) => (
+                  <div key={x.key} className="mb-1 flex items-start gap-1 text-[11px] leading-4">
+                    {x.kind === "biz" ? (
+                      <span className="badge badge-gold flex-none px-1 py-0 text-[10px]">{x.tag}</span>
+                    ) : (
+                      <span
+                        className="mt-[5px] inline-block size-[7px] flex-none rounded-full"
+                        style={{ background: x.color || "#0B3D5C" }}
+                      />
+                    )}
+                    <span className="min-w-0 break-words">
+                      {x.label}
+                      {x.sub ? <span className="text-muted"> {x.sub}</span> : null}
+                    </span>
+                  </div>
+                ))}
+                {(extras.get(date) ?? []).length > 0 && <div className="my-1.5 border-t border-line" />}
                 {list.length === 0 ? (
-                  <p className="form-hint">休</p>
+                  <p className="form-hint">{(extras.get(date) ?? []).length > 0 ? "無預排班" : "休"}</p>
                 ) : (
                   list.map((e) => (
                     <div
@@ -323,7 +445,9 @@ function WeekRoster({ today }: { today: string }) {
           })}
         </div>
       )}
-      <p className="form-hint mt-3">資料來自「預排班」，要排班或調整請到預排班頁。</p>
+      <p className="form-hint mt-3">
+        每天上方是行事曆行程（含拍攝賽事、夜班）與接案（拍攝／報價／合約日期），下方是預排班；要排班請到預排班頁。
+      </p>
     </div>
   );
 }
