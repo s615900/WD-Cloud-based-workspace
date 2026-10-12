@@ -86,6 +86,30 @@ export function PlanView() {
 
   const dayEntries = byDate.get(selected) ?? [];
 
+  // 時薪是 0 的班：多半是排班時模板還沒設時薪（時薪在排班當下就記下來了，之後改模板不會自動更新）。
+  // 只補「時薪為 0、且模板現在有時薪」的班，不動手動調過的班。
+  const rateFixes = entries.flatMap((e) => {
+    const t = templates.find((x) => x.name === e.name);
+    return e.rate === 0 && t && t.rate > 0 ? [{ entry: e, rate: t.rate }] : [];
+  });
+  const zeroRateCount = entries.filter((e) => e.rate === 0).length;
+  const [fixing, setFixing] = useState(false);
+
+  async function fillRates() {
+    setFixing(true);
+    setNotice("");
+    try {
+      const results = await Promise.allSettled(
+        rateFixes.map((f) => sendJson(`/api/plan/${f.entry.id}`, "PATCH", { rate: f.rate })),
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) setNotice(`有 ${failed} 筆更新失敗，請再按一次`);
+    } finally {
+      setFixing(false);
+      refresh();
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -265,6 +289,21 @@ export function PlanView() {
             <b className="text-navy">{formatCurrency(summary.pay)}</b>
           </span>
         </div>
+        {zeroRateCount > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[9px] border-l-4 border-gold bg-page px-3 py-2 text-[13px]">
+            <span>
+              有 <b>{zeroRateCount}</b> 班的時薪是 0，薪資沒有計入。
+              {rateFixes.length > 0
+                ? `其中 ${rateFixes.length} 班的班別模板現在已有時薪，可以一鍵補上。`
+                : "請先到班別模板設定時薪，或點「編輯」單筆填寫。"}
+            </span>
+            {rateFixes.length > 0 && (
+              <button type="button" className="btn btn-primary btn-sm ml-auto" disabled={fixing} onClick={fillRates}>
+                {fixing ? "補上中…" : `補上模板時薪（${rateFixes.length} 班）`}
+              </button>
+            )}
+          </div>
+        )}
         {summary.count === 0 ? (
           <p className="empty-hint">這個月還沒有排班</p>
         ) : (
