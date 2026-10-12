@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/ui";
-import { addDays, addMonths, apiFetch, errorText, formatCurrency, todayISO, weekdayOf, WEEKDAYS } from "@/lib/client";
+import { addMonths, apiFetch, currentMonth, errorText, formatCurrency, monthCells, todayISO, WEEKDAYS } from "@/lib/client";
 import { formatHours, paidMinutes, shiftPay } from "@/lib/payroll";
 import { useBusinessLocks } from "@/lib/useBusinessLocks";
 import { displayContractStatus } from "@/lib/contractStatus";
@@ -208,7 +208,7 @@ export function HomeView() {
         )}
       </div>
 
-      <WeekRoster today={today} />
+      <MonthRoster today={today} />
     </>
   );
 }
@@ -216,7 +216,6 @@ export function HomeView() {
 const PLAN_COLOR_FALLBACK = "#5A6570";
 const colorOf = (templates: RosterTemplate[], name: string) =>
   templates.find((t) => t.name === name)?.color || PLAN_COLOR_FALLBACK;
-const startOfWeek = (ymd: string) => addDays(ymd, -weekdayOf(ymd));
 
 type PlanRange =
   | { status: "loading" }
@@ -266,10 +265,10 @@ interface DayItem {
 
 const ymdOf = (v: string) => (v || "").replaceAll("/", "-").slice(0, 10);
 
-// 週班表每天上方要顯示的「行事曆行程」與「接案」：
+// 月班表每天上方要顯示的「行事曆行程」與「接案」：
 // 行程＝行事曆的個人行程／客戶預約，以及只存在行事曆、不列入預排班的班別（拍攝賽事、夜班）；
 // 預排班已經排的班別不在這裡重複顯示。接案＝專案拍攝日、報價日期、合約日期（遵守各模組鎖定）。
-function useWeekExtras(from: string, to: string, locks: ReturnType<typeof useBusinessLocks>): Map<string, DayItem[]> {
+function useRangeExtras(from: string, to: string, locks: ReturnType<typeof useBusinessLocks>): Map<string, DayItem[]> {
   const [events, setEvents] = useState<{ key: string; items: RosterEntry[] } | null>(null);
   const [biz, setBiz] = useState<{ date: string; item: DayItem }[]>([]);
   const key = `${from}|${to}`;
@@ -348,14 +347,15 @@ function useWeekExtras(from: string, to: string, locks: ReturnType<typeof useBus
   return map;
 }
 
-// 底部週班表：每天上方是行事曆行程與接案，下方是預排班（班別、時間、工時），標題有本週合計
-function WeekRoster({ today }: { today: string }) {
+// 底部月班表：每天格子上方是行事曆行程與接案，下方是預排班（班別），標題有本月合計
+function MonthRoster({ today }: { today: string }) {
   const locks = useBusinessLocks();
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(today));
-  const weekEnd = addDays(weekStart, 6);
-  const plan = usePlanRange(weekStart, weekEnd);
-  const extras = useWeekExtras(weekStart, weekEnd, locks);
-  const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const [month, setMonth] = useState(currentMonth);
+  const days = monthCells(month).filter((d): d is string => d !== null);
+  const from = days[0] ?? `${month}-01`;
+  const to = days[days.length - 1] ?? `${month}-28`;
+  const plan = usePlanRange(from, to);
+  const extras = useRangeExtras(from, to, locks);
   const entries = plan.status === "ok" ? plan.entries : [];
   const totalMin = entries.reduce((sum, e) => sum + paidMinutes(e), 0);
   const totalPay = entries.reduce((sum, e) => sum + shiftPay(e), 0);
@@ -364,89 +364,91 @@ function WeekRoster({ today }: { today: string }) {
     <div className="card">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="mb-0">
-            週班表　{weekStart.slice(5).replace("-", "/")} ～ {weekEnd.slice(5).replace("-", "/")}
-          </h3>
+          <h3 className="mb-0">月班表　{month}</h3>
           {plan.status === "ok" && (
             <p className="form-hint mt-1">
-              本週 {entries.length} 班 · {formatHours(totalMin)} 小時{totalPay > 0 ? ` · ${formatCurrency(totalPay)}` : ""}
+              本月 {entries.length} 班 · {formatHours(totalMin)} 小時{totalPay > 0 ? ` · ${formatCurrency(totalPay)}` : ""}
             </p>
           )}
         </div>
         <div className="flex gap-2.5">
-          <button className="btn btn-outline" onClick={() => setWeekStart((w) => addDays(w, -7))}>
-            ‹ 上週
+          <button className="btn btn-outline" onClick={() => setMonth((m) => addMonths(m, -1))}>
+            ‹ 上月
           </button>
-          <button className="btn btn-outline" onClick={() => setWeekStart(startOfWeek(today))}>
-            本週
+          <button className="btn btn-outline" onClick={() => setMonth(currentMonth())}>
+            本月
           </button>
-          <button className="btn btn-outline" onClick={() => setWeekStart((w) => addDays(w, 7))}>
-            下週 ›
+          <button className="btn btn-outline" onClick={() => setMonth((m) => addMonths(m, 1))}>
+            下月 ›
           </button>
         </div>
       </div>
+      <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+        {WEEKDAYS.map((w) => (
+          <div key={w} className="pb-1 text-center text-xs font-bold text-muted">
+            {w}
+          </div>
+        ))}
+      </div>
       {plan.status === "loading" ? (
-        <p className="empty-hint">載入中…</p>
+        <p className="empty-hint mt-1.5">載入中…</p>
       ) : plan.status === "error" ? (
-        <p className="empty-hint">無法載入（{plan.message}）</p>
+        <p className="empty-hint mt-1.5">無法載入（{plan.message}）</p>
       ) : (
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
-          {dates.map((date) => {
+        <div className="mt-1 grid grid-cols-7 gap-1 sm:gap-1.5">
+          {monthCells(month).map((date, i) => {
+            if (!date) {
+              return <div key={`pad-${i}`} className="min-h-[72px] rounded-[10px] border border-line opacity-35 sm:min-h-[110px]" />;
+            }
             const list = entries.filter((e) => e.date === date);
+            const dayExtras = extras.get(date) ?? [];
             const dayMin = list.reduce((sum, e) => sum + paidMinutes(e), 0);
             return (
               <div
                 key={date}
-                className={`min-w-0 rounded-[10px] border bg-white p-2 md:min-h-32 ${
+                className={`min-h-[72px] min-w-0 rounded-[10px] border bg-white px-[3px] py-1 sm:min-h-[110px] sm:px-1.5 sm:py-1.5 ${
                   date === today ? "border-2 border-navy-2" : "border-line"
                 }`}
               >
-                <div className="mb-1.5 flex items-baseline justify-between text-xs font-bold">
-                  <span>
-                    {date.slice(5).replace("-", "/")}（{WEEKDAYS[weekdayOf(date)]}）
-                  </span>
-                  {dayMin > 0 && <span className="font-normal text-muted">{formatHours(dayMin)}h</span>}
+                <div className="mb-1 flex items-baseline justify-between text-xs">
+                  <span className="font-bold">{parseInt(date.slice(8), 10)}</span>
+                  {dayMin > 0 && <span className="text-[10px] text-muted">{formatHours(dayMin)}h</span>}
                 </div>
-                {(extras.get(date) ?? []).map((x) => (
-                  <div key={x.key} className="mb-1 flex items-start gap-1 text-[11px] leading-4">
+                {dayExtras.map((x) => (
+                  <div key={x.key} className="mb-0.5 flex items-start gap-1 text-[9px] leading-[13px] sm:text-[11px] sm:leading-4">
                     {x.kind === "biz" ? (
-                      <span className="badge badge-gold flex-none px-1 py-0 text-[10px]">{x.tag}</span>
+                      <span className="badge badge-gold flex-none px-1 py-0 text-[9px] sm:text-[10px]">{x.tag}</span>
                     ) : (
                       <span
-                        className="mt-[5px] inline-block size-[7px] flex-none rounded-full"
+                        className="mt-[4px] inline-block size-[6px] flex-none rounded-full sm:mt-[5px] sm:size-[7px]"
                         style={{ background: x.color || "#0B3D5C" }}
                       />
                     )}
                     <span className="min-w-0 break-words">
                       {x.label}
-                      {x.sub ? <span className="text-muted"> {x.sub}</span> : null}
+                      {x.sub ? <span className="hidden text-muted sm:inline"> {x.sub}</span> : null}
                     </span>
                   </div>
                 ))}
-                {(extras.get(date) ?? []).length > 0 && <div className="my-1.5 border-t border-line" />}
-                {list.length === 0 ? (
-                  <p className="form-hint">{(extras.get(date) ?? []).length > 0 ? "無預排班" : "休"}</p>
-                ) : (
-                  list.map((e) => (
-                    <div
-                      key={e.id}
-                      className="mb-1 rounded border-l-[3px] bg-page px-1.5 py-[3px] text-[11.5px]"
-                      style={{ borderLeftColor: colorOf(plan.templates, e.name) }}
-                    >
-                      <div className="font-bold">{e.name}</div>
-                      <div className="text-muted">
-                        {e.start}–{e.end}
-                      </div>
-                    </div>
-                  ))
-                )}
+                {dayExtras.length > 0 && list.length > 0 && <div className="my-1 border-t border-line" />}
+                {list.map((e) => (
+                  <div
+                    key={e.id}
+                    className="mb-0.5 overflow-hidden rounded px-1 py-px text-[9px] leading-[13px] font-bold text-white sm:text-[10.5px] sm:leading-4"
+                    style={{ background: colorOf(plan.templates, e.name) }}
+                    title={`${e.name} ${e.start}–${e.end}`}
+                  >
+                    {e.name}
+                    <span className="hidden font-normal opacity-90 sm:inline"> {e.start}–{e.end}</span>
+                  </div>
+                ))}
               </div>
             );
           })}
         </div>
       )}
       <p className="form-hint mt-3">
-        每天上方是行事曆行程（含拍攝賽事、夜班）與接案（拍攝／報價／合約日期），下方是預排班；要排班請到預排班頁。
+        每格上方是行事曆行程（含拍攝賽事、夜班）與接案（拍攝／報價／合約日期，金色標籤），下方是預排班（彩色班別）；要排班請到預排班頁。
       </p>
     </div>
   );
