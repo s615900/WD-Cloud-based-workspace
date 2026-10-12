@@ -1,6 +1,6 @@
 # 10｜預排班（排班算工時與薪資）：Ragic 建表
 
-> 頁面：`/desktop/plan`（側邊欄「人事 → 預排班」）。程式已完成，**Ragic 兩件事做完、欄位編號填好之後才能存資料**。
+> 頁面：`/desktop/plan`（側邊欄「人事 → 預排班」）。Ragic 表與欄位編號都已接上並實機驗證（2026/10/13）。
 
 ## 功能
 
@@ -41,7 +41,8 @@
 1. 用 Ragic MCP `list_sheets(apname: "qsprint")` 查出欄位編號
 2. 改 `src/server/ragic/fields.ts`：
    - `SHEET.plan`、`F_PLAN`：**已填好**
-   - `F_TEMPLATE.rate`、`F_TEMPLATE.breakMin`：**待填**（WD 在班別模板表加好兩欄後填；0 = 未設定）
+   - `F_TEMPLATE.rate`（1001496）、`F_TEMPLATE.breakMin`（1001497）：**已填好**（0 = 未設定）
 3. 驗收：預排班頁排一個班 → Ragic 預排班表出現一筆（日期、開始結束、休息、時薪都有值）；編輯後 Ragic 同步更新；刪除後消失；行事曆頁**沒有**多出任何行程
 
-> 沒填 `F_TEMPLATE.rate／breakMin` 時：模板的時薪不會被存、也讀不到，預排班頁會顯示黃色提醒。
+> 若之後 `F_TEMPLATE.rate／breakMin` 被改回 0：模板的時薪不會被存、也讀不到，預排班頁會顯示黃色提醒。
+> 2026/10/13 實機驗證：新增模板（時薪 190、休息 60）→ 預排班自動帶入 → 8 小時 $1,520，測試資料已清除。

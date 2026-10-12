@@ -25,10 +25,10 @@ export const F_TEMPLATE = {
   color: 1001403,
   order: 1001404,
   active: 1001405,
-  // ⚠️ 預排班薪資用：WD 在班別模板表加「時薪」「休息分鐘」兩個數字欄位後，把欄位編號填在這裡。
+  // 預排班薪資用：時薪、不計薪休息分鐘（模板表 2026/10/13 新增的兩個數字欄位）。
   // 0 = 尚未設定：讀取時一律當 0、寫入時直接略過（見 templatePayConfigured）。
-  rate: 0,
-  breakMin: 0,
+  rate: 1001496,
+  breakMin: 1001497,
 } as const;
 
 export const F_CONFIG = {
