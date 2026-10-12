@@ -395,10 +395,10 @@ function MonthRoster({ today }: { today: string }) {
       ) : plan.status === "error" ? (
         <p className="empty-hint mt-1.5">無法載入（{plan.message}）</p>
       ) : (
-        <div className="mt-1 grid grid-cols-7 gap-1 sm:gap-1.5">
+        <div className="mt-1 grid auto-rows-fr grid-cols-7 gap-1 sm:gap-1.5">
           {monthCells(month).map((date, i) => {
             if (!date) {
-              return <div key={`pad-${i}`} className="min-h-[72px] rounded-[10px] border border-line opacity-35 sm:min-h-[110px]" />;
+              return <div key={`pad-${i}`} className="min-h-[84px] rounded-[10px] border border-line bg-[#FAFCFD] sm:min-h-[132px]" />;
             }
             const list = entries.filter((e) => e.date === date);
             const dayExtras = extras.get(date) ?? [];
@@ -406,40 +406,40 @@ function MonthRoster({ today }: { today: string }) {
             return (
               <div
                 key={date}
-                className={`min-h-[72px] min-w-0 rounded-[10px] border bg-white px-[3px] py-1 sm:min-h-[110px] sm:px-1.5 sm:py-1.5 ${
+                className={`min-h-[84px] min-w-0 rounded-[10px] border bg-white px-1 py-1.5 sm:min-h-[132px] sm:px-2 sm:py-2 ${
                   date === today ? "border-2 border-navy-2" : "border-line"
                 }`}
               >
-                <div className="mb-1 flex items-baseline justify-between text-xs">
-                  <span className="font-bold">{parseInt(date.slice(8), 10)}</span>
-                  {dayMin > 0 && <span className="text-[10px] text-muted">{formatHours(dayMin)}h</span>}
+                <div className="mb-1.5 flex items-baseline justify-between">
+                  <span className="text-[13px] font-bold">{parseInt(date.slice(8), 10)}</span>
+                  {dayMin > 0 && <span className="text-[11px] text-muted">{formatHours(dayMin)}h</span>}
                 </div>
                 {dayExtras.map((x) => (
-                  <div key={x.key} className="mb-0.5 flex items-start gap-1 text-[9px] leading-[13px] sm:text-[11px] sm:leading-4">
+                  <div
+                    key={x.key}
+                    className="mb-1 flex items-center gap-1.5 text-[11px] leading-4 sm:text-[12px]"
+                    title={`${x.label}${x.sub ? ` ${x.sub}` : ""}`}
+                  >
                     {x.kind === "biz" ? (
-                      <span className="badge badge-gold flex-none px-1 py-0 text-[9px] sm:text-[10px]">{x.tag}</span>
+                      <span className="badge badge-gold flex-none px-1 py-0 text-[10px]">{x.tag}</span>
                     ) : (
-                      <span
-                        className="mt-[4px] inline-block size-[6px] flex-none rounded-full sm:mt-[5px] sm:size-[7px]"
-                        style={{ background: x.color || "#0B3D5C" }}
-                      />
+                      <span className="inline-block size-2 flex-none rounded-full" style={{ background: x.color || "#0B3D5C" }} />
                     )}
-                    <span className="min-w-0 break-words">
-                      {x.label}
-                      {x.sub ? <span className="hidden text-muted sm:inline"> {x.sub}</span> : null}
-                    </span>
+                    <span className="min-w-0 truncate">{x.label}</span>
                   </div>
                 ))}
-                {dayExtras.length > 0 && list.length > 0 && <div className="my-1 border-t border-line" />}
+                {dayExtras.length > 0 && list.length > 0 && <div className="my-1.5 border-t border-line" />}
                 {list.map((e) => (
                   <div
                     key={e.id}
-                    className="mb-0.5 overflow-hidden rounded px-1 py-px text-[9px] leading-[13px] font-bold text-white sm:text-[10.5px] sm:leading-4"
+                    className="mb-1 rounded-md px-1.5 py-1 text-white"
                     style={{ background: colorOf(plan.templates, e.name) }}
                     title={`${e.name} ${e.start}–${e.end}`}
                   >
-                    {e.name}
-                    <span className="hidden font-normal opacity-90 sm:inline"> {e.start}–{e.end}</span>
+                    <div className="truncate text-[11px] leading-4 font-bold sm:text-[12px]">{e.name}</div>
+                    <div className="hidden text-[10.5px] leading-3 opacity-90 sm:block">
+                      {e.start}–{e.end}
+                    </div>
                   </div>
                 ))}
               </div>
