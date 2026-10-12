@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/ui";
-import { addMonths, apiFetch, currentMonth, errorText, monthCells, todayISO, WEEKDAYS } from "@/lib/client";
+import { addDays, addMonths, apiFetch, errorText, formatCurrency, todayISO, weekdayOf, WEEKDAYS } from "@/lib/client";
+import { formatHours, paidMinutes, shiftPay } from "@/lib/payroll";
 import { useBusinessLocks } from "@/lib/useBusinessLocks";
 import { displayContractStatus } from "@/lib/contractStatus";
-import type { ContractSummary, ProjectItem, QuoteSummary, ScheduleItem } from "@/lib/types";
+import type { ContractSummary, PlanEntry, QuoteSummary, RosterTemplate, ScheduleItem } from "@/lib/types";
 
 type Load<T> = { status: "loading" } | { status: "error"; message: string } | { status: "ok"; data: T };
 
@@ -59,7 +60,7 @@ export function HomeView() {
   const [schedule, setSchedule] = useState<Load<ScheduleItem[]>>({ status: "loading" });
   const [quotes, setQuotes] = useState<Load<QuoteSummary[]>>({ status: "loading" });
   const [contracts, setContracts] = useState<ContractSummary[]>([]);
-  const [projects, setProjects] = useState<Load<ProjectItem[]>>({ status: "loading" });
+  const todayPlan = usePlanRange(today, today);
 
   const todayLabel = new Intl.DateTimeFormat("zh-TW", {
     timeZone: "Asia/Taipei",
@@ -105,12 +106,6 @@ export function HomeView() {
         }
       })();
     }
-    if (!locks.projects) {
-      apiFetch<ProjectItem[]>("/api/projects").then(
-        (data) => setProjects({ status: "ok", data: data.slice(0, 3) }),
-        (err) => setProjects({ status: "error", message: errorText(err) }),
-      );
-    }
   }, [locks]);
 
   const merged =
@@ -152,17 +147,35 @@ export function HomeView() {
             ))}
         </SummaryCard>
 
-        {locks && !locks.projects && (
-          <SummaryCard title="專案進度" href="/desktop/projects" linkLabel="查看全部" state={projects} empty="尚無專案">
-            {projects.status === "ok" &&
-              projects.data.map((p) => (
-                <div key={p.id} className={rowClass}>
-                  <span>{p.clientName || p.projectCode || `專案 #${p.id}`}</span>
-                  <span className="badge badge-teal">{p.status}</span>
+        <SummaryCard
+          title="今日班表"
+          href="/desktop/plan"
+          linkLabel="預排班"
+          state={todayPlan.status === "ok" ? { status: "ok", data: todayPlan.entries } : todayPlan}
+          empty="今天沒有排班"
+        >
+          {todayPlan.status === "ok" && (
+            <>
+              {todayPlan.entries.map((e) => (
+                <div key={e.id} className={rowClass}>
+                  <span>
+                    <span
+                      className="mr-1.5 inline-block size-[9px] rounded-[3px]"
+                      style={{ background: colorOf(todayPlan.templates, e.name) }}
+                    />
+                    {e.name}
+                  </span>
+                  <span className="form-hint">
+                    {e.start}–{e.end} · {formatHours(paidMinutes(e))} 小時
+                  </span>
                 </div>
               ))}
-          </SummaryCard>
-        )}
+              <p className="form-hint mt-2">
+                今日共 {formatHours(todayPlan.entries.reduce((sum, e) => sum + paidMinutes(e), 0))} 小時
+              </p>
+            </>
+          )}
+        </SummaryCard>
 
         {/* 報價單卡片同時顯示報價單／合約兩種資料，兩邊都鎖定才整張隱藏 */}
         {locks && !(locks.quotes && locks.contracts) && (
@@ -186,102 +199,131 @@ export function HomeView() {
         )}
       </div>
 
-      {locks && <MiniCalendar today={today} quotesLocked={!!locks.quotes} contractsLocked={!!locks.contracts} />}
+      <WeekRoster today={today} />
     </>
   );
 }
 
-// 底部行事曆月檢視：私人行程（深藍點）＋接案商業（報價／合約日期，金色點）
-function MiniCalendar({
-  today,
-  quotesLocked,
-  contractsLocked,
-}: {
-  today: string;
-  quotesLocked: boolean;
-  contractsLocked: boolean;
-}) {
-  const [month, setMonth] = useState(currentMonth);
-  const [dots, setDots] = useState<{ month: string; privateDates: Set<string>; businessDates: Set<string> } | null>(null);
+const PLAN_COLOR_FALLBACK = "#5A6570";
+const colorOf = (templates: RosterTemplate[], name: string) =>
+  templates.find((t) => t.name === name)?.color || PLAN_COLOR_FALLBACK;
+const startOfWeek = (ymd: string) => addDays(ymd, -weekdayOf(ymd));
+
+type PlanRange =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ok"; entries: PlanEntry[]; templates: RosterTemplate[] };
+
+// 預排班資料（/api/plan）在 [from, to] 日期範圍內的班，跨月會查兩個月；同時抓班別模板用來上色
+function usePlanRange(from: string, to: string): PlanRange {
+  const [state, setState] = useState<{ key: string; result: PlanRange } | null>(null);
+  const key = `${from}|${to}`;
 
   useEffect(() => {
     let alive = true;
-    (async () => {
-      const privateDates = new Set<string>();
-      const businessDates = new Set<string>();
-      // 單一來源失敗就忽略，其他來源仍照常顯示
-      await Promise.all([
-        apiFetch<ScheduleItem[]>(`/api/schedule?month=${month}`)
-          .then((items) => items.forEach((s) => privateDates.add(s.date)))
-          .catch(() => {}),
-        quotesLocked
-          ? null
-          : apiFetch<QuoteSummary[]>("/api/quotes")
-              .then((items) => items.forEach((q) => businessDates.add((q.quoteDate || "").replaceAll("/", "-"))))
-              .catch(() => {}),
-        contractsLocked
-          ? null
-          : apiFetch<ContractSummary[]>("/api/contracts")
-              .then((items) => items.forEach((c) => businessDates.add((c.quoteDate || "").replaceAll("/", "-"))))
-              .catch(() => {}),
-      ]);
-      if (alive) setDots({ month, privateDates, businessDates });
-    })();
+    const months = [...new Set([from.slice(0, 7), to.slice(0, 7)])];
+    Promise.all([
+      Promise.all(months.map((m) => apiFetch<{ entries: PlanEntry[] }>(`/api/plan?month=${m}`))),
+      apiFetch<RosterTemplate[]>("/api/roster/templates").catch(() => [] as RosterTemplate[]),
+    ]).then(
+      ([pages, templates]) => {
+        const entries = pages
+          .flatMap((p) => p.entries)
+          .filter((e) => e.date >= from && e.date <= to)
+          .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+        if (alive) setState({ key, result: { status: "ok", entries, templates } });
+      },
+      (err) => {
+        if (alive) setState({ key, result: { status: "error", message: errorText(err) } });
+      },
+    );
     return () => {
       alive = false;
     };
-  }, [month, quotesLocked, contractsLocked]);
+  }, [from, to, key]);
+
+  return state && state.key === key ? state.result : { status: "loading" };
+}
+
+// 底部週班表：7 天的預排班（班別、時間、工時）＋本週合計
+function WeekRoster({ today }: { today: string }) {
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(today));
+  const weekEnd = addDays(weekStart, 6);
+  const plan = usePlanRange(weekStart, weekEnd);
+  const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const entries = plan.status === "ok" ? plan.entries : [];
+  const totalMin = entries.reduce((sum, e) => sum + paidMinutes(e), 0);
+  const totalPay = entries.reduce((sum, e) => sum + shiftPay(e), 0);
 
   return (
     <div className="card">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="mb-0">行事曆　{month}</h3>
+        <div>
+          <h3 className="mb-0">
+            週班表　{weekStart.slice(5).replace("-", "/")} ～ {weekEnd.slice(5).replace("-", "/")}
+          </h3>
+          {plan.status === "ok" && (
+            <p className="form-hint mt-1">
+              本週 {entries.length} 班 · {formatHours(totalMin)} 小時{totalPay > 0 ? ` · ${formatCurrency(totalPay)}` : ""}
+            </p>
+          )}
+        </div>
         <div className="flex gap-2.5">
-          <button className="btn btn-outline" onClick={() => setMonth((m) => addMonths(m, -1))}>
-            ‹ 上月
+          <button className="btn btn-outline" onClick={() => setWeekStart((w) => addDays(w, -7))}>
+            ‹ 上週
           </button>
-          <button className="btn btn-outline" onClick={() => setMonth((m) => addMonths(m, 1))}>
-            下月 ›
+          <button className="btn btn-outline" onClick={() => setWeekStart(startOfWeek(today))}>
+            本週
+          </button>
+          <button className="btn btn-outline" onClick={() => setWeekStart((w) => addDays(w, 7))}>
+            下週 ›
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-1.5">
-        {WEEKDAYS.map((w) => (
-          <div key={w} className="pb-1.5 text-center text-xs font-bold text-muted">
-            {w}
-          </div>
-        ))}
-      </div>
-      {!dots || dots.month !== month ? (
-        <p className="empty-hint mt-1.5">載入中…</p>
+      {plan.status === "loading" ? (
+        <p className="empty-hint">載入中…</p>
+      ) : plan.status === "error" ? (
+        <p className="empty-hint">無法載入（{plan.message}）</p>
       ) : (
-        <div className="mt-1.5 grid grid-cols-7 gap-1.5">
-          {monthCells(month).map((date, i) =>
-            date ? (
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
+          {dates.map((date) => {
+            const list = entries.filter((e) => e.date === date);
+            const dayMin = list.reduce((sum, e) => sum + paidMinutes(e), 0);
+            return (
               <div
                 key={date}
-                className={`min-h-[86px] rounded-[10px] border bg-white px-2 py-1.5 text-xs max-sm:min-h-14 max-sm:p-1 ${
+                className={`min-w-0 rounded-[10px] border bg-white p-2 md:min-h-32 ${
                   date === today ? "border-2 border-navy-2" : "border-line"
                 }`}
               >
-                <div className="mb-1 font-bold">{parseInt(date.slice(8), 10)}</div>
-                <div className="flex flex-wrap gap-1">
-                  {dots.privateDates.has(date) && <span className="inline-block size-[7px] rounded-full bg-navy" />}
-                  {dots.businessDates.has(date) && <span className="inline-block size-[7px] rounded-full bg-gold" />}
+                <div className="mb-1.5 flex items-baseline justify-between text-xs font-bold">
+                  <span>
+                    {date.slice(5).replace("-", "/")}（{WEEKDAYS[weekdayOf(date)]}）
+                  </span>
+                  {dayMin > 0 && <span className="font-normal text-muted">{formatHours(dayMin)}h</span>}
                 </div>
+                {list.length === 0 ? (
+                  <p className="form-hint">休</p>
+                ) : (
+                  list.map((e) => (
+                    <div
+                      key={e.id}
+                      className="mb-1 rounded border-l-[3px] bg-page px-1.5 py-[3px] text-[11.5px]"
+                      style={{ borderLeftColor: colorOf(plan.templates, e.name) }}
+                    >
+                      <div className="font-bold">{e.name}</div>
+                      <div className="text-muted">
+                        {e.start}–{e.end}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
-            ) : (
-              <div key={`pad-${i}`} className="min-h-[86px] rounded-[10px] border border-line opacity-35 max-sm:min-h-14" />
-            ),
-          )}
+            );
+          })}
         </div>
       )}
-      <p className="form-hint mt-3">
-        <span className="mr-1 inline-block size-[7px] rounded-full bg-navy" />
-        私人行程
-        <span className="mr-1 ml-4 inline-block size-[7px] rounded-full bg-gold" />
-        接案商業（報價／合約日期）
-      </p>
+      <p className="form-hint mt-3">資料來自「預排班」，要排班或調整請到預排班頁。</p>
     </div>
   );
 }
