@@ -223,8 +223,7 @@ export interface LeaveItem {
 export interface PlanEntry {
   id: number;
   date: string; // yyyy-MM-dd
-  templateCode: string;
-  name: string;
+  name: string; // 班別名稱（也用來對應模板顏色、分組統計）
   start: string;
   end: string;
   breakMin: number;

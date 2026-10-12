@@ -15,7 +15,6 @@ function toPlanEntry(id: string, r: RagicRecordData): PlanEntry {
   return {
     id: Number(id),
     date: normalizeDate(r["日期"]),
-    templateCode: String(r["班別編號"] ?? ""),
     name: String(r["班別名稱"] ?? ""),
     start: String(r["開始時間"] ?? ""),
     end: String(r["結束時間"] ?? ""),
@@ -37,7 +36,6 @@ export type PlanInput = Omit<PlanEntry, "id">;
 export async function createPlan(input: PlanInput): Promise<number> {
   return ragicCreate("plan", {
     [String(F_PLAN.date)]: input.date,
-    [String(F_PLAN.templateCode)]: input.templateCode,
     [String(F_PLAN.name)]: input.name,
     [String(F_PLAN.start)]: input.start,
     [String(F_PLAN.end)]: input.end,

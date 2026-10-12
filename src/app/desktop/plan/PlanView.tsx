@@ -27,7 +27,7 @@ type Load =
   | { status: "error"; message: string }
   | { status: "ok"; entries: PlanEntry[]; templatePay: boolean };
 
-const colorOf = (templates: RosterTemplate[], code: string) => templates.find((t) => t.code === code)?.color || "#5A6570";
+const colorOf = (templates: RosterTemplate[], name: string) => templates.find((t) => t.name === name)?.color || "#5A6570";
 
 export function PlanView() {
   const today = todayISO();
@@ -64,7 +64,7 @@ export function PlanView() {
   const ready = load.status === "ok";
   const byDate = new Map<string, PlanEntry[]>();
   for (const e of entries) byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]);
-  const summary = summarize(entries, (e) => ({ key: e.templateCode || e.name, label: e.name }));
+  const summary = summarize(entries, (e) => ({ key: e.name, label: e.name }));
 
   async function addToDate(date: string, template: RosterTemplate) {
     try {
@@ -207,7 +207,7 @@ export function PlanView() {
                     <div
                       key={e.id}
                       className="mt-0.5 overflow-hidden rounded px-[3px] text-[9px] leading-[14px] font-bold whitespace-nowrap text-white sm:mt-1 sm:h-4 sm:px-[5px] sm:text-[10px]"
-                      style={{ background: colorOf(templates, e.templateCode) }}
+                      style={{ background: colorOf(templates, e.name) }}
                     >
                       {e.name}
                     </div>
@@ -231,7 +231,7 @@ export function PlanView() {
               <div
                 key={e.id}
                 className="mb-2 flex items-center justify-between gap-2 rounded-[9px] border-l-[3px] bg-page px-3 py-2"
-                style={{ borderLeftColor: colorOf(templates, e.templateCode) }}
+                style={{ borderLeftColor: colorOf(templates, e.name) }}
               >
                 <div className="min-w-0 text-[13px]">
                   <div className="font-bold">{e.name}</div>

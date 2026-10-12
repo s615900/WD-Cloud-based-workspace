@@ -14,7 +14,7 @@ export const SHEET = {
   schedule: "/8",
   freeslot: "/9",
   // 預排班（排班算時數／薪資用的草稿，不進行事曆）。路徑待 WD 建表後確認，見 docs/10
-  plan: "/12",
+  plan: "/14",
 } as const;
 
 export const F_TEMPLATE = {
@@ -86,18 +86,18 @@ export function sheetUrl(sheet: keyof typeof SHEET): string {
   return `${getRagicFolderBase()}${SHEET[sheet]}`;
 }
 
-// 預排班表（/ragicforms21/12）。每一筆是「某天排了某個班」，開始／結束／休息／時薪都存當下的
+// 預排班表（/ragicforms21/14）。每一筆是「某天排了某個班」，開始／結束／休息／時薪都存當下的
 // 快照（建立時從班別模板複製），之後改模板不會讓已排好的月份薪資跟著變。
-// ⚠️ 欄位編號待 WD 在 Ragic 建表後填入（0 = 尚未設定，planConfigured() 為 false 時 API 回 503）。
+// 「班別編號」（1001488）在 Ragic 是自動編號、唯讀，不可寫入；程式用「班別名稱」對應模板。
+// 休息分鐘、時薪在 Ragic 是文字欄位，寫入送數字字串、讀回再轉數字。
 export const F_PLAN = {
-  date: 0,
-  templateCode: 0,
-  name: 0,
-  start: 0,
-  end: 0,
-  breakMin: 0,
-  rate: 0,
-  note: 0,
+  date: 1001487,
+  name: 1001489,
+  start: 1001490,
+  end: 1001491,
+  breakMin: 1001492,
+  rate: 1001493,
+  note: 1001494,
 } as const;
 
 export function planConfigured(): boolean {

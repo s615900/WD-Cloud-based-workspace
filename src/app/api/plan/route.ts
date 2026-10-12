@@ -54,14 +54,14 @@ export async function POST(req: Request) {
   const dates = [...new Set(body.dates as string[])];
 
   // 班別資料快照：有 templateCode 就從模板複製，body 帶的 start/end/breakMin/rate 可覆蓋
-  let base = { templateCode: "", name: "", start: "", end: "", breakMin: 0, rate: 0 };
+  let base = { name: "", start: "", end: "", breakMin: 0, rate: 0 };
   if (body.templateCode !== undefined) {
     if (typeof body.templateCode !== "string" || !body.templateCode.trim()) {
       return json({ success: false, error: "templateCode 不可為空" }, 400);
     }
     const t = await findTemplateByCode(body.templateCode.trim());
     if (!t) return json({ success: false, error: "找不到對應的班別模板" }, 400);
-    base = { templateCode: t.code, name: t.name, start: t.start, end: t.end, breakMin: t.breakMin, rate: t.rate };
+    base = { name: t.name, start: t.start, end: t.end, breakMin: t.breakMin, rate: t.rate };
   }
   const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : base.name;
   const start = body.start !== undefined ? body.start : base.start;
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     const results: { date: string; id?: number; error?: string }[] = [];
     await runWithConcurrency(dates, 3, async (date) => {
       try {
-        const id = await createPlan({ date, templateCode: base.templateCode, name, start, end, breakMin, rate, note });
+        const id = await createPlan({ date, name, start, end, breakMin, rate, note });
         results.push({ date, id });
       } catch (err) {
         results.push({ date, error: errorMessage(err, "建立失敗") });
