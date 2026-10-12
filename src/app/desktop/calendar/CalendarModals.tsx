@@ -7,6 +7,17 @@ import type { RosterTemplate } from "@/lib/types";
 
 const COLORS = ["#3D6FD1", "#E07A28", "#7C56C9", "#C2415B", "#0E8A8A", "#5A6570"];
 
+// 依現有模板編號（S-0001、S-0002…）算出下一個；沒有任何符合格式的就從 S-0001 開始。
+// 包含停用的模板，避免跟停用中的舊編號撞號。
+export function nextTemplateCode(codes: string[]): string {
+  let max = 0;
+  for (const c of codes) {
+    const m = /^S-(\d+)$/.exec(c.trim());
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `S-${String(max + 1).padStart(4, "0")}`;
+}
+
 export function NewTemplateModal({
   templateCount,
   onClose,
@@ -26,6 +37,14 @@ export function NewTemplateModal({
   const [breakMin, setBreakMin] = useState("0");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<MessageState>({ text: "" });
+
+  // 開啟時自動帶入下一個編號；使用者已經自己輸入了就不覆蓋
+  useEffect(() => {
+    apiFetch<RosterTemplate[]>("/api/roster/templates").then(
+      (list) => setCode((cur) => cur || nextTemplateCode(list.map((t) => t.code))),
+      () => {},
+    );
+  }, []);
 
   async function save() {
     if (!name.trim()) return setMessage({ text: "請輸入名稱", kind: "error" });
@@ -60,7 +79,7 @@ export function NewTemplateModal({
           <input className="input" value={name} placeholder="例如：早班" onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="form-field">
-          <label>模板編號</label>
+          <label>模板編號（自動帶入，可修改）</label>
           <input className="input" value={code} placeholder="例如：S-0001" onChange={(e) => setCode(e.target.value)} />
         </div>
         <div className="form-field">
