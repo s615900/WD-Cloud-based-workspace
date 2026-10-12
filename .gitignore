@@ -43,3 +43,6 @@ next-env.d.ts
 
 /artifacts/
 /lib/
+
+# Vercel 環境變數資料夾（之後會放真實金鑰，不可上傳 GitHub）
+/環境變數/
