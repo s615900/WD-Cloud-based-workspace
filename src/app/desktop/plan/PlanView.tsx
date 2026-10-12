@@ -27,6 +27,9 @@ type Load =
   | { status: "error"; message: string }
   | { status: "ok"; entries: PlanEntry[]; templatePay: boolean };
 
+// 這些班別只用在行事曆，不列入預排班（不算工時與薪資）。要增減就改這裡的名字（跟班別模板名稱一字不差）。
+const PLAN_EXCLUDED_TEMPLATES = new Set(["拍攝賽事", "夜班"]);
+
 const colorOf = (templates: RosterTemplate[], name: string) => templates.find((t) => t.name === name)?.color || "#5A6570";
 
 export function PlanView() {
@@ -45,7 +48,7 @@ export function PlanView() {
 
   useEffect(() => {
     apiFetch<RosterTemplate[]>("/api/roster/templates").then(
-      (list) => setTemplates(list.filter((t) => t.active)),
+      (list) => setTemplates(list.filter((t) => t.active && !PLAN_EXCLUDED_TEMPLATES.has(t.name))),
       () => setTemplates([]),
     );
   }, [version]);
