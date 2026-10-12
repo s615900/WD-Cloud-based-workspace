@@ -1,5 +1,5 @@
 import { ragicUpdate, ragicDelete } from "@/server/ragic/client";
-import { F_TEMPLATE } from "@/server/ragic/fields";
+import { F_TEMPLATE, templatePayConfigured } from "@/server/ragic/fields";
 import { TIME_RE } from "@/server/modules/dates";
 import { errorMessage, json, readBody } from "@/server/http";
 
@@ -43,6 +43,17 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (body.active !== undefined) {
     if (typeof body.active !== "boolean") return json({ success: false, error: "active 必須是布林值" }, 400);
     fields[String(F_TEMPLATE.active)] = body.active ? "是" : "否";
+  }
+  for (const [key, fieldId] of [
+    ["rate", F_TEMPLATE.rate],
+    ["breakMin", F_TEMPLATE.breakMin],
+  ] as const) {
+    const v = body[key];
+    if (v === undefined) continue;
+    if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+      return json({ success: false, error: `${key} 必須是 0 以上的數字` }, 400);
+    }
+    if (templatePayConfigured()) fields[String(fieldId)] = String(v);
   }
 
   if (Object.keys(fields).length === 0) {

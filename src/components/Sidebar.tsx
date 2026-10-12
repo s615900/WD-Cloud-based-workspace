@@ -28,7 +28,10 @@ const GROUPS: { label: string; items: { href: string; label: string; lockKey?: B
   },
   {
     label: "人事",
-    items: [{ href: "/desktop/hr", label: "人事假勤" }],
+    items: [
+      { href: "/desktop/plan", label: "預排班" },
+      { href: "/desktop/hr", label: "人事假勤" },
+    ],
   },
   {
     label: "系統",

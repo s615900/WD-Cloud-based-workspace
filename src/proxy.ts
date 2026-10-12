@@ -30,6 +30,7 @@ export const config = {
     "/api/projects/:path*",
     "/api/roster/:path*",
     "/api/hr/:path*",
+    "/api/plan/:path*",
     "/api/push/:path*",
   ],
 };

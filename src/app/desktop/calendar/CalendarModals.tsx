@@ -22,6 +22,8 @@ export function NewTemplateModal({
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("18:00");
   const [color, setColor] = useState(COLORS[templateCount % COLORS.length]);
+  const [rate, setRate] = useState("");
+  const [breakMin, setBreakMin] = useState("0");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<MessageState>({ text: "" });
 
@@ -39,6 +41,9 @@ export function NewTemplateModal({
         color,
         order: Number(order),
         active: true,
+        // 預排班算薪資用；Ragic 模板表尚未加欄位時，後端會略過這兩個值
+        rate: Number(rate) || 0,
+        breakMin: Number(breakMin) || 0,
       });
       onSaved();
     } catch (err) {
@@ -69,6 +74,14 @@ export function NewTemplateModal({
         <div className="form-field">
           <label>結束時間</label>
           <input className="input" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+        </div>
+        <div className="form-field">
+          <label>時薪（預排班算薪資用，可留空）</label>
+          <input className="input" type="number" min={0} value={rate} placeholder="例如：190" onChange={(e) => setRate(e.target.value)} />
+        </div>
+        <div className="form-field">
+          <label>不計薪休息（分鐘）</label>
+          <input className="input" type="number" min={0} step={5} value={breakMin} onChange={(e) => setBreakMin(e.target.value)} />
         </div>
         <div className="form-field sm:col-span-2">
           <label>顏色</label>

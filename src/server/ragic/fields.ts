@@ -13,6 +13,8 @@ export const SHEET = {
   config: "/7",
   schedule: "/8",
   freeslot: "/9",
+  // 預排班（排班算時數／薪資用的草稿，不進行事曆）。路徑待 WD 建表後確認，見 docs/10
+  plan: "/12",
 } as const;
 
 export const F_TEMPLATE = {
@@ -23,6 +25,10 @@ export const F_TEMPLATE = {
   color: 1001403,
   order: 1001404,
   active: 1001405,
+  // ⚠️ 預排班薪資用：WD 在班別模板表加「時薪」「休息分鐘」兩個數字欄位後，把欄位編號填在這裡。
+  // 0 = 尚未設定：讀取時一律當 0、寫入時直接略過（見 templatePayConfigured）。
+  rate: 0,
+  breakMin: 0,
 } as const;
 
 export const F_CONFIG = {
@@ -78,4 +84,26 @@ export function getRagicFolderBase(): string {
 
 export function sheetUrl(sheet: keyof typeof SHEET): string {
   return `${getRagicFolderBase()}${SHEET[sheet]}`;
+}
+
+// 預排班表（/ragicforms21/12）。每一筆是「某天排了某個班」，開始／結束／休息／時薪都存當下的
+// 快照（建立時從班別模板複製），之後改模板不會讓已排好的月份薪資跟著變。
+// ⚠️ 欄位編號待 WD 在 Ragic 建表後填入（0 = 尚未設定，planConfigured() 為 false 時 API 回 503）。
+export const F_PLAN = {
+  date: 0,
+  templateCode: 0,
+  name: 0,
+  start: 0,
+  end: 0,
+  breakMin: 0,
+  rate: 0,
+  note: 0,
+} as const;
+
+export function planConfigured(): boolean {
+  return Object.values(F_PLAN).every((id) => id > 0);
+}
+
+export function templatePayConfigured(): boolean {
+  return F_TEMPLATE.rate > 0 && F_TEMPLATE.breakMin > 0;
 }

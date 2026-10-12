@@ -27,6 +27,8 @@ export interface TemplateItem {
   color: string;
   order: number;
   active: boolean;
+  rate: number; // 時薪（模板表沒有這個欄位時一律是 0）
+  breakMin: number; // 不計薪的休息分鐘
 }
 
 export function toTemplateItem(recordId: string, r: Record<string, unknown>): TemplateItem {
@@ -39,6 +41,8 @@ export function toTemplateItem(recordId: string, r: Record<string, unknown>): Te
     color: String(r["顏色"] ?? ""),
     order: Number(r["排序"] ?? 0),
     active: r["啟用"] === "是",
+    rate: Number(r["時薪"] ?? 0) || 0,
+    breakMin: Number(r["休息分鐘"] ?? 0) || 0,
   };
 }
 

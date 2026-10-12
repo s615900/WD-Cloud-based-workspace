@@ -159,6 +159,8 @@ export interface RosterTemplate {
   color: string;
   order: number;
   active: boolean;
+  rate: number;
+  breakMin: number;
 }
 
 export interface RosterEntry {
@@ -213,5 +215,19 @@ export interface LeaveItem {
   type: string;
   date: string; // yyyy-MM-dd
   hours: number;
+  note: string;
+}
+
+// ── 預排班（/api/plan）：排班算工時與薪資，不進行事曆 ─────────────────
+
+export interface PlanEntry {
+  id: number;
+  date: string; // yyyy-MM-dd
+  templateCode: string;
+  name: string;
+  start: string;
+  end: string;
+  breakMin: number;
+  rate: number;
   note: string;
 }
