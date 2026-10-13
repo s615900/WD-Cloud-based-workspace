@@ -28,6 +28,16 @@ type Load =
   | { status: "error"; message: string }
   | { status: "ok"; entries: PlanEntry[]; templatePay: boolean };
 
+// 結算日：班別模板（Ragic「結算日」欄位）填 20 的班別，本期 = 上月 21 日～本月 20 日，其餘照日曆月。
+const lastDay = (month: string) => {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(y!, m!, 0).getDate();
+};
+function periodRange(month: string, settle20: boolean): [string, string] {
+  if (!settle20) return [`${month}-01`, `${month}-${String(lastDay(month)).padStart(2, "0")}`];
+  return [`${addMonths(month, -1)}-21`, `${month}-20`];
+}
+
 const colorOf = (templates: RosterTemplate[], name: string) => templates.find((t) => t.name === name)?.color || "#5A6570";
 
 export function PlanView() {
@@ -42,6 +52,7 @@ export function PlanView() {
     { kind: "template" } | { kind: "repeat"; template: RosterTemplate } | { kind: "edit"; entry: PlanEntry } | null
   >(null);
   const [notice, setNotice] = useState("");
+  const [settleFilter, setSettleFilter] = useState<"all" | "month" | "d20">("all");
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
 
   useEffect(() => {
@@ -52,20 +63,30 @@ export function PlanView() {
   }, [version]);
 
   useEffect(() => {
-    apiFetch<{ entries: PlanEntry[]; templatePay: boolean }>(`/api/plan?month=${month}`).then(
+    apiFetch<{ entries: PlanEntry[]; templatePay: boolean }>("/api/plan").then(
       (data) => setLoad({ status: "ok", ...data }),
       (err) => {
         const message = errorText(err);
         setLoad(message.includes("尚未設定") ? { status: "notConfigured" } : { status: "error", message });
       },
     );
-  }, [month, version]);
+  }, [version]);
 
-  const entries = load.status === "ok" ? load.entries : [];
+  const settle20 = new Set(templates.filter((t) => t.settleDay === 20).map((t) => t.name));
+  const allEntries = load.status === "ok" ? load.entries : [];
+  const entries = allEntries.filter((e) => e.date.startsWith(month)); // 月曆顯示用
+  // 下方「工時與薪資」：每筆班依自己的結算日歸期，再套班別／結算方式篩選
+  const periodEntries = allEntries.filter((e) => {
+    const is20 = settle20.has(e.name);
+    if (settleFilter === "month" && is20) return false;
+    if (settleFilter === "d20" && !is20) return false;
+    const [from, to] = periodRange(month, is20);
+    return e.date >= from && e.date <= to;
+  });
   const ready = load.status === "ok";
   const byDate = new Map<string, PlanEntry[]>();
   for (const e of entries) byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]);
-  const summary = summarize(entries, (e) => ({ key: e.name, label: e.name }));
+  const summary = summarize(periodEntries, (e) => ({ key: e.name, label: e.name }));
 
   async function addToDate(date: string, template: RosterTemplate) {
     try {
@@ -86,11 +107,11 @@ export function PlanView() {
 
   // 時薪是 0 的班：多半是排班時模板還沒設時薪（時薪在排班當下就記下來了，之後改模板不會自動更新）。
   // 只補「時薪為 0、且模板現在有時薪」的班，不動手動調過的班。
-  const rateFixes = entries.flatMap((e) => {
+  const rateFixes = periodEntries.flatMap((e) => {
     const t = templates.find((x) => x.name === e.name);
     return e.rate === 0 && t && t.rate > 0 ? [{ entry: e, rate: t.rate }] : [];
   });
-  const zeroRateCount = entries.filter((e) => e.rate === 0).length;
+  const zeroRateCount = periodEntries.filter((e) => e.rate === 0).length;
   const [fixing, setFixing] = useState(false);
 
   async function fillRates() {
@@ -281,10 +302,35 @@ export function PlanView() {
       {/* 月薪資彙總 */}
       <section className="card mt-5">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="mb-0">{month} 工時與薪資</h3>
+          <h3 className="mb-0">{month} 結算期 工時與薪資</h3>
           <span className="text-sm text-muted">
             共 {summary.count} 班 · <b className="text-navy">{formatHours(summary.minutes)}</b> 小時 ·{" "}
             <b className="text-navy">{formatCurrency(summary.pay)}</b>
+          </span>
+        </div>
+        <div className="mb-3 flex flex-wrap items-end gap-x-5 gap-y-1 border-b border-line">
+          {(
+            [
+              ["all", "全部"],
+              ["month", "月底結算"],
+              ["d20", "20 日結算"],
+            ] as const
+          ).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setSettleFilter(v)}
+              className={`-mb-px border-b-2 px-1 pb-2 text-[14px] ${
+                settleFilter === v ? "border-navy font-bold text-navy" : "border-transparent text-muted"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          <span className="ml-auto pb-2 text-[12px] text-muted">
+            {settleFilter !== "d20" && `月底：${periodRange(month, false)[0].slice(5)} ～ ${periodRange(month, false)[1].slice(5)}`}
+            {settleFilter === "all" && "　"}
+            {settleFilter !== "month" && `20 日：${periodRange(month, true)[0].slice(5)} ～ ${periodRange(month, true)[1].slice(5)}`}
           </span>
         </div>
         {zeroRateCount > 0 && (
@@ -303,7 +349,7 @@ export function PlanView() {
           </div>
         )}
         {summary.count === 0 ? (
-          <p className="empty-hint">這個月還沒有排班</p>
+          <p className="empty-hint">這個結算期沒有符合的排班</p>
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -350,7 +396,7 @@ export function PlanView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map((e) => (
+                  {periodEntries.map((e) => (
                     <tr key={e.id}>
                       <td>
                         {e.date.slice(5).replace("-", "/")}（{WEEKDAYS[weekdayOf(e.date)]}）

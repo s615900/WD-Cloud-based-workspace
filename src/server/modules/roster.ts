@@ -29,6 +29,7 @@ export interface TemplateItem {
   active: boolean;
   rate: number; // 時薪（模板表沒有這個欄位時一律是 0）
   breakMin: number; // 不計薪的休息分鐘
+  settleDay: number; // 每月結算日（Ragic「結算日」欄位，例如 20；空白或 0 = 月底結算）
 }
 
 export function toTemplateItem(recordId: string, r: Record<string, unknown>): TemplateItem {
@@ -43,6 +44,7 @@ export function toTemplateItem(recordId: string, r: Record<string, unknown>): Te
     active: r["啟用"] === "是",
     rate: Number(r["時薪"] ?? 0) || 0,
     breakMin: Number(r["休息分鐘"] ?? 0) || 0,
+    settleDay: Number(String(r["結算日"] ?? "").match(/\d+/)?.[0] ?? 0) || 0,
   };
 }
 

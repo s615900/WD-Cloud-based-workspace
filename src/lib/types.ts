@@ -161,6 +161,7 @@ export interface RosterTemplate {
   active: boolean;
   rate: number;
   breakMin: number;
+  settleDay: number; // 0 = 月底結算
 }
 
 export interface RosterEntry {
