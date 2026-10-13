@@ -38,6 +38,9 @@ function periodRange(month: string, settle20: boolean): [string, string] {
   return [`${addMonths(month, -1)}-21`, `${month}-20`];
 }
 
+// 匯入行事曆的班別篩選：依班別名稱開頭分類
+const IMPORT_PREFIXES = ["迪卡儂", "駿斯"];
+
 const colorOf = (templates: RosterTemplate[], name: string) => templates.find((t) => t.name === name)?.color || "#5A6570";
 
 export function PlanView() {
@@ -52,6 +55,7 @@ export function PlanView() {
     { kind: "template" } | { kind: "repeat"; template: RosterTemplate } | null
   >(null);
   const [notice, setNotice] = useState("");
+  const [importPrefix, setImportPrefix] = useState(""); // 班別篩選：名稱開頭（迪卡儂／駿斯），空白＝全部
   const [settleFilter, setSettleFilter] = useState<"all" | "month" | "d20">("all");
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
 
@@ -73,7 +77,8 @@ export function PlanView() {
   }, [version]);
 
   const settle20 = new Set(templates.filter((t) => t.settleDay === 20).map((t) => t.name));
-  const allEntries = load.status === "ok" ? load.entries : [];
+  // 班別篩選（迪卡儂／駿斯）：月曆、當日班表、薪資彙總與匯入行事曆都用同一個篩選
+  const allEntries = (load.status === "ok" ? load.entries : []).filter((e) => e.name.startsWith(importPrefix));
   const entries = allEntries.filter((e) => e.date.startsWith(month)); // 月曆顯示用
   // 下方「工時與薪資」：每筆班依自己的結算日歸期，再套班別／結算方式篩選
   const periodEntries = allEntries.filter((e) => {
@@ -127,18 +132,48 @@ export function PlanView() {
   }
 
   async function importToCalendar() {
-    if (!window.confirm(`把 ${month} 的預排班匯入行事曆？已在行事曆上的班會自動略過。`)) return;
+    if (!window.confirm(`把 ${month} 的${IMPORT_PREFIXES.includes(importPrefix) && importPrefix ? `「${importPrefix}」` : ""}預排班匯入行事曆？已在行事曆上的班會自動略過。`)) return;
     setImporting(true);
     setNotice("");
     setImportDone("");
     try {
-      const r = await sendJson<{ imported: number; failed: number; skipped: number }>("/api/plan/import", "POST", { month });
+      const r = await sendJson<{ imported: number; failed: number; skipped: number }>("/api/plan/import", "POST", {
+        month,
+        prefix: IMPORT_PREFIXES.includes(importPrefix) ? importPrefix : "",
+      });
       if (r.failed > 0) setNotice(`匯入 ${r.imported} 筆，有 ${r.failed} 筆失敗，請再按一次`);
       else setImportDone(`已匯入 ${r.imported} 筆到行事曆（略過已存在 ${r.skipped} 筆）`);
     } catch (err) {
       setNotice(errorText(err, "匯入失敗"));
     } finally {
       setImporting(false);
+    }
+  }
+
+  // 模板時間改過後，把「這個月（含目前班別篩選）」已排班的時間／休息／時薪更新成模板現在的值。
+  // 每月各自同步，不動其他月份；模板時薪是 0（未設定）時不覆蓋既有時薪。
+  const syncList = entries.flatMap((e) => {
+    const t = templates.find((x) => x.name === e.name);
+    if (!t) return [];
+    const rate = t.rate > 0 ? t.rate : e.rate;
+    const changed = e.start !== t.start || e.end !== t.end || e.breakMin !== t.breakMin || e.rate !== rate;
+    return changed ? [{ entry: e, start: t.start, end: t.end, breakMin: t.breakMin, rate }] : [];
+  });
+  const [syncing, setSyncing] = useState(false);
+
+  async function syncFromTemplates() {
+    if (!window.confirm(`把 ${month} 的 ${syncList.length} 筆班，時間／休息／時薪更新成班別模板現在的設定？`)) return;
+    setSyncing(true);
+    setNotice("");
+    try {
+      const results = await Promise.allSettled(
+        syncList.map(({ entry, ...body }) => sendJson(`/api/plan/${entry.id}`, "PATCH", body)),
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) setNotice(`有 ${failed} 筆更新失敗，請再按一次`);
+    } finally {
+      setSyncing(false);
+      refresh();
     }
   }
 
@@ -238,6 +273,22 @@ export function PlanView() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="mb-0">{month}</h3>
             <div className="flex flex-wrap gap-2">
+              <select
+                className="btn btn-outline cursor-pointer font-semibold"
+                aria-label="匯入的班別"
+                value={IMPORT_PREFIXES.includes(importPrefix) ? importPrefix : ""}
+                onChange={(e) => setImportPrefix(e.target.value)}
+              >
+                <option value="">全部班別</option>
+                {IMPORT_PREFIXES.map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <button className="btn btn-outline" disabled={syncing || syncList.length === 0} onClick={syncFromTemplates}>
+                {syncing ? "同步中…" : syncList.length > 0 ? `同步模板時間（${syncList.length}）` : "同步模板時間"}
+              </button>
               <button className="btn btn-primary" disabled={!ready || importing || entries.length === 0} onClick={importToCalendar}>
                 {importing ? "匯入中…" : "匯入行事曆"}
               </button>

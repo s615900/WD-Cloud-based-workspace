@@ -10,11 +10,13 @@ import { errorMessage, json, readBody } from "@/server/http";
 export async function POST(req: Request) {
   const blocked = planNotConfiguredResponse();
   if (blocked) return blocked;
-  const body = await readBody<{ month?: unknown }>(req);
+  const body = await readBody<{ month?: unknown; prefix?: unknown }>(req);
   if (typeof body.month !== "string" || !/^\d{4}-\d{2}$/.test(body.month)) {
     return json({ success: false, error: "month 格式須為 yyyy-MM" }, 400);
   }
   const month = body.month;
+  // 只匯入班別名稱開頭符合的班（例如「駿斯」「迪卡」）；空白＝全部
+  const prefix = typeof body.prefix === "string" ? body.prefix.trim() : "";
 
   try {
     const [plan, schedule, templateData] = await Promise.all([listPlan(), listAllSchedule(), ragicList("template")]);
@@ -22,7 +24,7 @@ export async function POST(req: Request) {
     const key = (date: string, title: string, start: string, end: string) => `${date}|${title}|${start}|${end}`;
     const existing = new Set(schedule.filter((s) => s.kind === "班別").map((s) => key(s.date, s.title, s.start, s.end)));
 
-    const inMonth = plan.filter((p) => p.date.startsWith(month));
+    const inMonth = plan.filter((p) => p.date.startsWith(month) && p.name.startsWith(prefix));
     const todo = inMonth.filter((p) => !existing.has(key(p.date, p.name, p.start, p.end)));
 
     let succeeded = 0;

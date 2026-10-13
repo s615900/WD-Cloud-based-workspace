@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { SerwistProvider } from "@serwist/turbopack/react";
+import { DevServiceWorkerCleanup } from "@/components/DevServiceWorkerCleanup";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -37,7 +38,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         {/* 快取策略在 src/app/sw.ts；關掉「換頁自動快取」與「恢復連線自動重整」：
             前者會把登入後的個人頁面存進快取，後者會讓填到一半的表單被重整掉 */}
-        <SerwistProvider swUrl="/serwist/sw.js" cacheOnNavigation={false} reloadOnOnline={false}>
+        {/* 本機開發不啟用 service worker（會快取舊程式檔，改了看不到），並清掉先前註冊的 */}
+        {process.env.NODE_ENV === "development" && <DevServiceWorkerCleanup />}
+        <SerwistProvider
+          swUrl="/serwist/sw.js"
+          disable={process.env.NODE_ENV === "development"}
+          cacheOnNavigation={false}
+          reloadOnOnline={false}
+        >
           {children}
         </SerwistProvider>
       </body>
