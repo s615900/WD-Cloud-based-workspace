@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Message, PageHeader, type MessageState } from "@/components/ui";
+import { useCallback, useEffect, useState } from "react";
+import { PageHeader } from "@/components/ui";
 import {
   addDays,
   addMonths,
@@ -15,44 +15,32 @@ import {
 } from "@/lib/client";
 import type { FreeSlot, RosterConfig, RosterEntry, RosterTemplate } from "@/lib/types";
 import { DayPanel } from "./DayPanel";
-import { NewTemplateModal, PublishModal, RepeatModal } from "./CalendarModals";
+import { PublishModal } from "./CalendarModals";
 
 const startOfWeek = (ymd: string) => addDays(ymd, -weekdayOf(ymd));
 const entryColor = (e: RosterEntry) => (e.status === "取消" ? "#B7C2CC" : e.color || "#5A6570");
 
-type ConfigForm = Record<
-  "dayStart" | "dayEnd" | "bufferBefore" | "bufferAfter" | "minSlot" | "roundTo" | "publishDays" | "bookingUrl",
-  string
->;
-
 export function CalendarView({ initialDate }: { initialDate: string | null }) {
-  const [templates, setTemplates] = useState<RosterTemplate[] | null>(null);
   const [config, setConfig] = useState<RosterConfig | null>(null);
-  const [configError, setConfigError] = useState("");
   const [view, setView] = useState<"month" | "week">("month");
   const [calendarMonth, setCalendarMonth] = useState(() => (initialDate ? initialDate.slice(0, 7) : currentMonth()));
   const [weekStart, setWeekStart] = useState(() => startOfWeek(initialDate ?? todayISO()));
   const [selectedDate, setSelectedDate] = useState(() => initialDate ?? todayISO());
+  // 行事曆只留「拍攝賽事」模板可直接排；其他班別改從預排班頁匯入
+  const [templates, setTemplates] = useState<RosterTemplate[]>([]);
   const [picked, setPicked] = useState<RosterTemplate | null>(null);
   // 排班資料或空檔規則變動時遞增，觸發行事曆與右側面板重新載入
   const [version, setVersion] = useState(0);
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
 
-  const [modal, setModal] = useState<
-    { kind: "template" } | { kind: "repeat"; template: RosterTemplate } | { kind: "publish" } | null
-  >(null);
-
-  const loadTemplates = useCallback(async () => {
-    try {
-      setTemplates(await apiFetch<RosterTemplate[]>("/api/roster/templates"));
-    } catch {
-      setTemplates([]);
-    }
-  }, []);
+  const [modal, setModal] = useState<{ kind: "publish" } | null>(null);
 
   useEffect(() => {
-    apiFetch<RosterTemplate[]>("/api/roster/templates").then(setTemplates, () => setTemplates([]));
-    apiFetch<RosterConfig>("/api/roster/config").then(setConfig, (err) => setConfigError(errorText(err)));
+    apiFetch<RosterTemplate[]>("/api/roster/templates").then(
+      (list) => setTemplates(list.filter((t) => t.active && t.name === "拍攝賽事")),
+      () => setTemplates([]),
+    );
+    apiFetch<RosterConfig>("/api/roster/config").then(setConfig, () => setConfig(null));
   }, []);
 
   async function onDateClick(date: string) {
@@ -81,16 +69,28 @@ export function CalendarView({ initialDate }: { initialDate: string | null }) {
     <>
       <PageHeader
         title="行事曆"
-        subtitle="班別模板、重複排班、空檔推算與公布——跟 LINE Bot 行程資料共用同一張排班表"
+        subtitle="空檔推算與公布——跟 LINE Bot 行程資料共用同一張排班表"
         actions={
           <>
+            {templates.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`btn ${picked?.id === t.id ? "btn-primary" : "btn-outline"}`}
+                title={picked?.id === t.id ? `點日曆上的日期即可排入「${t.name}」，再點一次取消` : undefined}
+                onClick={() => setPicked(picked?.id === t.id ? null : t)}
+              >
+                <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-[3px] align-middle" style={{ background: t.color }} />
+                {t.name}
+              </button>
+            ))}
             <button
               type="button"
               className="btn btn-outline"
               onClick={() => {
                 // 開放預約：直接開啟設定裡的預約連結
                 if (config?.bookingUrl) window.open(config.bookingUrl, "_blank", "noopener");
-                else alert("尚未設定預約連結，請先在電腦版行事曆最下方的「空檔推算規則」填入預約連結。");
+                else alert("尚未設定預約連結，請先在 Ragic 設定表填入預約連結。");
               }}
             >
               開放預約
@@ -102,73 +102,9 @@ export function CalendarView({ initialDate }: { initialDate: string | null }) {
         }
       />
 
-      {/* 班別模板 */}
-      <section className="card mb-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="mb-0">班別模板</h3>
-          <span className="form-hint">點模板卡片後再點日曆上的日期，即可排入該天</span>
-        </div>
-        <div className="flex gap-2.5 overflow-x-auto pb-1">
-          {templates === null ? (
-            <p className="empty-hint">載入中…</p>
-          ) : templates.length === 0 ? (
-            <p className="empty-hint">還沒有班別模板</p>
-          ) : (
-            templates.map((t) => (
-              <div
-                key={t.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setPicked((p) => (p?.id === t.id ? null : t))}
-                className={`min-w-[150px] flex-none cursor-pointer rounded-[11px] border-[1.5px] bg-white px-3 py-2.5 text-left hover:border-navy ${
-                  picked?.id === t.id ? "border-navy shadow-[0_0_0_3px_rgba(11,61,92,.12)]" : "border-line"
-                }`}
-              >
-                <span className="mr-1.5 inline-block size-[9px] rounded-[3px]" style={{ background: t.color }} />
-                <span className="text-[13px] font-bold">{t.name}</span>
-                <div className="mt-0.5 text-[11.5px] text-muted">
-                  {t.start} – {t.end}
-                </div>
-                <button
-                  type="button"
-                  className="mt-2 cursor-pointer rounded-md bg-page px-2 py-[3px] text-[10.5px] font-bold text-navy hover:bg-navy hover:text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setModal({ kind: "repeat", template: t });
-                  }}
-                >
-                  重複排班
-                </button>
-              </div>
-            ))
-          )}
-          <button
-            type="button"
-            className="flex min-w-[54px] flex-none cursor-pointer items-center justify-center rounded-[11px] border-[1.5px] border-dashed border-line bg-white text-xl text-muted"
-            onClick={() => setModal({ kind: "template" })}
-          >
-            ＋
-          </button>
-        </div>
-        {picked && (
-          <div className="mt-3 flex items-center gap-2.5 rounded-[9px] bg-navy px-3 py-2 text-[13px] text-white">
-            <span>
-              正在排入 <b>{picked.name}</b>　點日曆上的日期即可排入
-            </span>
-            <button
-              type="button"
-              className="ml-auto cursor-pointer rounded-[7px] bg-white/16 px-2.5 py-1 text-xs"
-              onClick={() => setPicked(null)}
-            >
-              取消
-            </button>
-          </div>
-        )}
-      </section>
-
       <div className="grid grid-cols-1 gap-[18px] xl:grid-cols-[2fr_1fr]">
-        <div className="min-w-0">
-          <section className="card mb-5">
+        <div className="flex min-w-0 flex-col">
+          <section className="card mb-5 flex-1 xl:mb-0">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h3 className="mb-0">
                 {view === "month" ? calendarMonth : `${weekStart} ～ ${addDays(weekStart, 6)}`}
@@ -220,45 +156,6 @@ export function CalendarView({ initialDate }: { initialDate: string | null }) {
         <DayPanel date={selectedDate} version={version} onChanged={refresh} />
       </div>
 
-      {/* 空檔推算規則：放在整頁最下面；手機（< 768px）不顯示，要調整請用平板或電腦 */}
-      <div className="mt-5 max-md:hidden">
-        {config ? (
-          <ConfigSection
-            config={config}
-            onSaved={(c) => {
-              setConfig(c);
-              refresh();
-            }}
-          />
-        ) : (
-          <section className="card">
-            <h3>空檔推算規則</h3>
-            <p className="empty-hint">{configError ? `無法載入（${configError}）` : "載入中…"}</p>
-          </section>
-        )}
-      </div>
-
-      {modal?.kind === "template" && (
-        <NewTemplateModal
-          templateCount={templates?.length ?? 0}
-          onClose={() => setModal(null)}
-          onSaved={() => {
-            setModal(null);
-            loadTemplates();
-          }}
-        />
-      )}
-      {modal?.kind === "repeat" && (
-        <RepeatModal
-          template={modal.template}
-          defaultFrom={selectedDate}
-          onClose={() => setModal(null)}
-          onDone={() => {
-            setModal(null);
-            refresh();
-          }}
-        />
-      )}
       {modal?.kind === "publish" && <PublishModal publishDays={config?.publishDays} onClose={() => setModal(null)} />}
     </>
   );
@@ -433,122 +330,5 @@ function CalendarBody({
         })}
       </div>
     </div>
-  );
-}
-
-function toForm(c: RosterConfig): ConfigForm {
-  return {
-    dayStart: c.dayStart,
-    dayEnd: c.dayEnd,
-    bufferBefore: String(c.bufferBefore),
-    bufferAfter: String(c.bufferAfter),
-    minSlot: String(c.minSlot),
-    roundTo: String(c.roundTo),
-    publishDays: String(c.publishDays),
-    bookingUrl: c.bookingUrl,
-  };
-}
-
-// 空檔推算規則：欄位變動後 0.5 秒自動儲存，儲存後重算右側空檔
-function ConfigSection({ config, onSaved }: { config: RosterConfig; onSaved: (c: RosterConfig) => void }) {
-  const [form, setForm] = useState<ConfigForm>(() => toForm(config));
-  const [message, setMessage] = useState<MessageState>({ text: "" });
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
-
-  function update(key: keyof ConfigForm, value: string) {
-    const next = { ...form, [key]: value };
-    setForm(next);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(async () => {
-      const body = {
-        dayStart: next.dayStart,
-        dayEnd: next.dayEnd,
-        bufferBefore: Number(next.bufferBefore),
-        bufferAfter: Number(next.bufferAfter),
-        minSlot: Number(next.minSlot),
-        roundTo: Number(next.roundTo),
-        publishDays: Number(next.publishDays),
-        bookingUrl: next.bookingUrl,
-      };
-      setMessage({ text: "儲存中…" });
-      try {
-        await apiFetch("/api/roster/config", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        setMessage({ text: "已儲存", kind: "success" });
-        onSaved({ ...config, ...body });
-      } catch (err) {
-        setMessage({ text: errorText(err, "儲存失敗"), kind: "error" });
-      }
-    }, 500);
-  }
-
-  const field = (key: keyof ConfigForm, props: React.InputHTMLAttributes<HTMLInputElement>) => (
-    <input
-      className="input"
-      value={form[key]}
-      onChange={(e) => update(key, e.target.value)}
-      {...props}
-    />
-  );
-
-  return (
-    <section className="card">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="mb-0">空檔推算規則</h3>
-        <span className="form-hint">修改後即時重算右側空檔</span>
-      </div>
-      <div className="form-grid">
-        <div className="form-field">
-          <label>每日開始</label>
-          {field("dayStart", { type: "time" })}
-        </div>
-        <div className="form-field">
-          <label>每日結束</label>
-          {field("dayEnd", { type: "time" })}
-        </div>
-        <div className="form-field">
-          <label>班前緩衝（分）</label>
-          {field("bufferBefore", { type: "number", min: 0, step: 15 })}
-        </div>
-        <div className="form-field">
-          <label>班後緩衝（分）</label>
-          {field("bufferAfter", { type: "number", min: 0, step: 15 })}
-        </div>
-        <div className="form-field">
-          <label>最短可用空檔</label>
-          <select className="input" value={form.minSlot} onChange={(e) => update("minSlot", e.target.value)}>
-            <option value="30">30 分</option>
-            <option value="60">1 小時</option>
-            <option value="90">1.5 小時</option>
-            <option value="120">2 小時</option>
-            <option value="180">3 小時</option>
-          </select>
-        </div>
-        <div className="form-field">
-          <label>時間對齊</label>
-          <select className="input" value={form.roundTo} onChange={(e) => update("roundTo", e.target.value)}>
-            <option value="15">15 分</option>
-            <option value="30">30 分</option>
-            <option value="60">整點</option>
-          </select>
-        </div>
-        <div className="form-field">
-          <label>公布天數</label>
-          {field("publishDays", { type: "number", min: 1, step: 1 })}
-        </div>
-        <div className="form-field sm:col-span-2">
-          <label>預約連結（留空則公布訊息不附連結）</label>
-          {field("bookingUrl", { type: "text", placeholder: "https://…" })}
-        </div>
-      </div>
-      <Message state={message} />
-    </section>
   );
 }

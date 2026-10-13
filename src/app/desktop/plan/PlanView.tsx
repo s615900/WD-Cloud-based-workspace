@@ -2,7 +2,7 @@
 
 // 預排班：先把一個月的班排出來，自動算每天／每月工時與薪資。
 // 班別模板跟行事曆共用同一張 Ragic 表（/api/roster/templates）；排好的班存在獨立的「預排班」表（/api/plan），
-// 不會出現在行事曆、LINE 提醒，也不影響空檔推算。
+// 按「匯入行事曆」前不會出現在行事曆、LINE 提醒，也不影響空檔推算。
 import { useCallback, useEffect, useState } from "react";
 import { Message, Modal, ModalActions, PageHeader, type MessageState } from "@/components/ui";
 import {
@@ -49,7 +49,7 @@ export function PlanView() {
   const [version, setVersion] = useState(0);
   const [picked, setPicked] = useState<RosterTemplate | null>(null);
   const [modal, setModal] = useState<
-    { kind: "template" } | { kind: "repeat"; template: RosterTemplate } | { kind: "edit"; entry: PlanEntry } | null
+    { kind: "template" } | { kind: "repeat"; template: RosterTemplate } | null
   >(null);
   const [notice, setNotice] = useState("");
   const [settleFilter, setSettleFilter] = useState<"all" | "month" | "d20">("all");
@@ -113,6 +113,34 @@ export function PlanView() {
   });
   const zeroRateCount = periodEntries.filter((e) => e.rate === 0).length;
   const [fixing, setFixing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importDone, setImportDone] = useState("");
+
+  async function removeEntry(entry: PlanEntry) {
+    if (!confirm(`刪除 ${entry.date} 的「${entry.name}」？`)) return;
+    try {
+      await apiFetch(`/api/plan/${entry.id}`, { method: "DELETE" });
+      refresh();
+    } catch (err) {
+      setNotice(errorText(err, "刪除失敗"));
+    }
+  }
+
+  async function importToCalendar() {
+    if (!window.confirm(`把 ${month} 的預排班匯入行事曆？已在行事曆上的班會自動略過。`)) return;
+    setImporting(true);
+    setNotice("");
+    setImportDone("");
+    try {
+      const r = await sendJson<{ imported: number; failed: number; skipped: number }>("/api/plan/import", "POST", { month });
+      if (r.failed > 0) setNotice(`匯入 ${r.imported} 筆，有 ${r.failed} 筆失敗，請再按一次`);
+      else setImportDone(`已匯入 ${r.imported} 筆到行事曆（略過已存在 ${r.skipped} 筆）`);
+    } catch (err) {
+      setNotice(errorText(err, "匯入失敗"));
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function fillRates() {
     setFixing(true);
@@ -133,13 +161,14 @@ export function PlanView() {
     <>
       <PageHeader
         title="預排班"
-        subtitle="先排好整個月的班，自動算工時與薪資。這裡排的班不會出現在行事曆。"
+        subtitle="先排好整個月的班，自動算工時與薪資。排完按「匯入行事曆」才會進行事曆。"
       />
 
       {load.status === "notConfigured" && <SetupNotice />}
       {load.status === "error" && <p className="mb-4 font-semibold text-danger">無法載入預排班：{load.message}</p>}
       {load.status === "ok" && !load.templatePay && <PayFieldNotice />}
       {notice && <p className="mb-3 font-semibold text-danger">{notice}</p>}
+      {importDone && <p className="mb-3 font-semibold text-teal">{importDone}</p>}
 
       {/* 班別模板（跟行事曆同一份） */}
       <section className="card mb-5">
@@ -208,7 +237,10 @@ export function PlanView() {
         <section className="card min-w-0">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="mb-0">{month}</h3>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button className="btn btn-primary" disabled={!ready || importing || entries.length === 0} onClick={importToCalendar}>
+                {importing ? "匯入中…" : "匯入行事曆"}
+              </button>
               <button className="btn btn-outline" onClick={() => setMonth((m) => addMonths(m, -1))}>
                 ‹ 上月
               </button>
@@ -285,8 +317,8 @@ export function PlanView() {
                     {e.start}–{e.end} · {formatHours(paidMinutes(e))} 小時 · {formatCurrency(shiftPay(e))}
                   </div>
                 </div>
-                <button className="btn btn-outline btn-sm" onClick={() => setModal({ kind: "edit", entry: e })}>
-                  編輯
+                <button className="btn btn-outline btn-sm flex-none text-danger" onClick={() => void removeEntry(e)}>
+                  刪除
                 </button>
               </div>
             ))
@@ -410,8 +442,8 @@ export function PlanView() {
                       <td>{formatCurrency(e.rate)}</td>
                       <td>{formatCurrency(shiftPay(e))}</td>
                       <td>
-                        <button className="btn btn-outline btn-sm" onClick={() => setModal({ kind: "edit", entry: e })}>
-                          編輯
+                        <button className="btn btn-outline btn-sm text-danger" onClick={() => void removeEntry(e)}>
+                          刪除
                         </button>
                       </td>
                     </tr>
@@ -437,16 +469,6 @@ export function PlanView() {
         <MonthRepeatModal
           template={modal.template}
           month={month}
-          onClose={() => setModal(null)}
-          onDone={() => {
-            setModal(null);
-            refresh();
-          }}
-        />
-      )}
-      {modal?.kind === "edit" && (
-        <EditEntryModal
-          entry={modal.entry}
           onClose={() => setModal(null)}
           onDone={() => {
             setModal(null);
@@ -529,98 +551,6 @@ function MonthRepeatModal({
         </button>
         <button type="button" className="btn btn-primary" disabled={saving} onClick={save}>
           排入 {dates.length} 天
-        </button>
-      </ModalActions>
-    </Modal>
-  );
-}
-
-function EditEntryModal({ entry, onClose, onDone }: { entry: PlanEntry; onClose: () => void; onDone: () => void }) {
-  const [date, setDate] = useState(entry.date);
-  const [start, setStart] = useState(entry.start);
-  const [end, setEnd] = useState(entry.end);
-  const [breakMin, setBreakMin] = useState(String(entry.breakMin));
-  const [rate, setRate] = useState(String(entry.rate));
-  const [note, setNote] = useState(entry.note);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<MessageState>({ text: "" });
-
-  const preview = { start, end, breakMin: Number(breakMin) || 0, rate: Number(rate) || 0 };
-
-  async function save() {
-    setSaving(true);
-    setMessage({ text: "儲存中…" });
-    try {
-      await sendJson(`/api/plan/${entry.id}`, "PATCH", {
-        date,
-        start,
-        end,
-        breakMin: Number(breakMin) || 0,
-        rate: Number(rate) || 0,
-        note,
-      });
-      onDone();
-    } catch (err) {
-      setMessage({ text: errorText(err, "儲存失敗"), kind: "error" });
-      setSaving(false);
-    }
-  }
-
-  async function remove() {
-    if (!confirm(`刪除 ${entry.date} 的「${entry.name}」？`)) return;
-    setSaving(true);
-    try {
-      await apiFetch(`/api/plan/${entry.id}`, { method: "DELETE" });
-      onDone();
-    } catch (err) {
-      setMessage({ text: errorText(err, "刪除失敗"), kind: "error" });
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal open onClose={onClose} title={`編輯：${entry.name}`}>
-      <div className="form-grid">
-        <div className="form-field sm:col-span-2">
-          <label>日期</label>
-          <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
-        <div className="form-field">
-          <label>開始時間</label>
-          <input className="input" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
-        </div>
-        <div className="form-field">
-          <label>結束時間（早於開始＝跨日）</label>
-          <input className="input" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
-        </div>
-        <div className="form-field">
-          <label>不計薪休息（分鐘）</label>
-          <input className="input" type="number" min={0} step={5} value={breakMin} onChange={(e) => setBreakMin(e.target.value)} />
-        </div>
-        <div className="form-field">
-          <label>時薪</label>
-          <input className="input" type="number" min={0} value={rate} onChange={(e) => setRate(e.target.value)} />
-        </div>
-        <div className="form-field sm:col-span-2">
-          <label>備註</label>
-          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} />
-        </div>
-      </div>
-      <p className="mt-3 text-sm text-muted">
-        工時 <b className="text-navy">{formatHours(paidMinutes(preview))}</b> 小時 · 薪資{" "}
-        <b className="text-navy">{formatCurrency(shiftPay(preview))}</b>
-        <span className="form-hint ml-2">只改這一天，不會動到班別模板</span>
-      </p>
-      <Message state={message} />
-      <ModalActions>
-        <button type="button" className="btn btn-danger mr-auto" disabled={saving} onClick={remove}>
-          刪除
-        </button>
-        <button type="button" className="btn btn-outline" onClick={onClose}>
-          取消
-        </button>
-        <button type="button" className="btn btn-primary" disabled={saving} onClick={save}>
-          儲存
         </button>
       </ModalActions>
     </Modal>

@@ -97,21 +97,6 @@ export function DayPanel({ date, version, onChanged }: { date: string; version: 
                 >
                   刪除
                 </button>
-                {e.batchId && (
-                  <button
-                    type="button"
-                    className="btn btn-danger px-2.5 py-1 text-xs"
-                    onClick={() => {
-                      if (!confirm("確定刪除整組排班？此動作無法復原。")) return;
-                      act(
-                        () => apiFetch(`/api/roster/schedule/batch/${encodeURIComponent(e.batchId)}`, { method: "DELETE" }),
-                        "刪除失敗",
-                      );
-                    }}
-                  >
-                    整組刪除
-                  </button>
-                )}
               </div>
             </div>
           ))
@@ -137,7 +122,7 @@ export function DayPanel({ date, version, onChanged }: { date: string; version: 
   }
 
   return (
-    <section className="card self-start">
+    <section className="card">
       <h3>
         {date.slice(5).replace("-", "/")}（{WEEKDAYS[weekdayOf(date)]}）
       </h3>
