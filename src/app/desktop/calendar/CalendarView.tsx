@@ -60,6 +60,43 @@ export function CalendarView({ initialDate }: { initialDate: string | null }) {
     refresh();
   }
 
+  // 後台改了拍攝賽事模板的時間後，把「目前顯示月份」已排的拍攝賽事更新成模板現在的時間
+  // （排班當下會把模板時間抄一份，之後改模板不會自動更新）
+  const [syncing, setSyncing] = useState(false);
+  async function syncTemplateTimes() {
+    const t = templates[0];
+    if (!t) return;
+    setSyncing(true);
+    try {
+      const cells = monthCells(calendarMonth).filter(Boolean) as string[];
+      const all = await apiFetch<RosterEntry[]>(`/api/roster/schedule?from=${cells[0]}&to=${cells[cells.length - 1]}`);
+      const todo = all.filter(
+        (e) => e.kind === "班別" && e.title === t.name && e.date.startsWith(calendarMonth) && (e.start !== t.start || e.end !== t.end),
+      );
+      if (todo.length === 0) {
+        alert(`${calendarMonth} 的「${t.name}」時間都已經跟模板一致（${t.start}–${t.end}）`);
+        return;
+      }
+      if (!confirm(`把 ${calendarMonth} 的 ${todo.length} 筆「${t.name}」改成模板時間 ${t.start}–${t.end}？`)) return;
+      const results = await Promise.allSettled(
+        todo.map((e) =>
+          apiFetch(`/api/roster/schedule/${e.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ start: t.start, end: t.end }),
+          }),
+        ),
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) alert(`有 ${failed} 筆更新失敗，請再按一次`);
+    } catch (err) {
+      alert(errorText(err, "同步失敗"));
+    } finally {
+      setSyncing(false);
+      refresh();
+    }
+  }
+
   function go(delta: number) {
     if (view === "month") setCalendarMonth((m) => addMonths(m, delta));
     else setWeekStart((w) => addDays(w, delta * 7));
@@ -84,6 +121,11 @@ export function CalendarView({ initialDate }: { initialDate: string | null }) {
                 {t.name}
               </button>
             ))}
+            {templates.length > 0 && (
+              <button type="button" className="btn btn-outline" disabled={syncing} onClick={syncTemplateTimes}>
+                {syncing ? "同步中…" : "同步賽事時間"}
+              </button>
+            )}
             <button
               type="button"
               className="btn btn-outline"
