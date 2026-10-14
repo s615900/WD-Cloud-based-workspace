@@ -57,10 +57,9 @@ export function Sidebar() {
 
   return (
     <>
-      {/* 桌面上方導覽列：標題在左，其餘靠右 */}
+      {/* 桌面上方導覽列：項目在左，標題靠右 */}
       <nav className="sticky top-0 z-[60] flex items-center bg-navy px-6 py-2 text-white max-lg:hidden">
-        <span className="text-lg font-bold tracking-wide">個人工作台</span>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="flex items-center gap-1">
           {MAIN_ITEMS.map((item) => (
             <Link key={item.href} href={item.href} className={topLink(isActive(pathname, item.href))}>
               {item.label}
@@ -85,7 +84,7 @@ export function Sidebar() {
                   {group.label} <span className="text-[10px] opacity-70">▾</span>
                 </button>
                 {dropdown === group.label ? (
-                  <div className="absolute right-0 top-full min-w-[160px] rounded-lg bg-navy p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]">
+                  <div className="absolute left-0 top-full min-w-[160px] rounded-lg bg-navy p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]">
                     {group.items.map((item) => (
                       <Link
                         key={item.href}
@@ -105,6 +104,7 @@ export function Sidebar() {
             {SETTINGS.label}
           </Link>
         </div>
+        <span className="ml-auto text-lg font-bold tracking-wide">WD＿個人工作台</span>
       </nav>
 
       {/* 手機／平板頂列（漢堡選單），桌面寬度隱藏 */}
@@ -117,7 +117,7 @@ export function Sidebar() {
         >
           ☰
         </button>
-        <span className="text-[15px] font-bold">個人工作台</span>
+        <span className="text-[15px] font-bold">WD＿個人工作台</span>
       </div>
 
       <div
@@ -133,7 +133,7 @@ export function Sidebar() {
           open ? "" : "-translate-x-full"
         }`}
       >
-        <div className="px-2 pb-5 text-lg font-bold tracking-wide">個人工作台</div>
+        <div className="px-2 pb-5 text-lg font-bold tracking-wide">WD＿個人工作台</div>
         {DRAWER_GROUPS.map((group) => (
           <div key={group.label} className="mb-5">
             <div className="px-2 pb-2 text-[11px] font-bold tracking-[0.08em] text-white/55 uppercase">{group.label}</div>
