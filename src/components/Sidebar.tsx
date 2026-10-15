@@ -6,7 +6,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-type NavItem = { href: string; label: string };
+// external：外部網站書籤，另開新分頁
+type NavItem = { href: string; label: string; external?: boolean };
 
 // 上方列直接攤開的項目
 const MAIN_ITEMS: NavItem[] = [
@@ -21,6 +22,16 @@ const DROP_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { href: "/desktop/plan", label: "預排班" },
       { href: "/desktop/hr", label: "人事假勤" },
+    ],
+  },
+  {
+    label: "網站管理",
+    items: [
+      { href: "https://qsprint-tw.vercel.app/", label: "官網", external: true },
+      { href: "https://qsprint-tw.vercel.app/admin", label: "官網後台", external: true },
+      { href: "https://event-management-qsprint.vercel.app/", label: "賽事登記", external: true },
+      { href: "https://event-management-qsprint.vercel.app/admin", label: "賽事登記後台", external: true },
+      { href: "https://national-games-lyart.vercel.app/", label: "全台灣運動攝影師作品平台", external: true },
     ],
   },
   {
@@ -46,6 +57,22 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+// 內部頁面用 Link；外部書籤用 <a> 另開分頁
+function NavLink({ item, className, onClick }: { item: NavItem; className: string; onClick?: () => void }) {
+  if (item.external) {
+    return (
+      <a href={item.href} target="_blank" rel="noopener noreferrer" className={className} onClick={onClick}>
+        {item.label} <span className="text-[10px] opacity-60">↗</span>
+      </a>
+    );
+  }
+  return (
+    <Link href={item.href} className={className} onClick={onClick}>
+      {item.label}
+    </Link>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -66,7 +93,7 @@ export function Sidebar() {
             </Link>
           ))}
           {DROP_GROUPS.map((group) => {
-            const groupActive = group.items.some((it) => isActive(pathname, it.href));
+            const groupActive = group.items.some((it) => !it.external && isActive(pathname, it.href));
             return (
               <div
                 key={group.label}
@@ -86,14 +113,12 @@ export function Sidebar() {
                 {dropdown === group.label ? (
                   <div className="absolute left-0 top-full min-w-[160px] rounded-lg bg-navy p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]">
                     {group.items.map((item) => (
-                      <Link
+                      <NavLink
                         key={item.href}
-                        href={item.href}
+                        item={item}
                         onClick={() => setDropdown(null)}
-                        className={`block ${topLink(isActive(pathname, item.href))}`}
-                      >
-                        {item.label}
-                      </Link>
+                        className={`block ${topLink(!item.external && isActive(pathname, item.href))}`}
+                      />
                     ))}
                   </div>
                 ) : null}
@@ -138,16 +163,14 @@ export function Sidebar() {
           <div key={group.label} className="mb-5">
             <div className="px-2 pb-2 text-[11px] font-bold tracking-[0.08em] text-white/55 uppercase">{group.label}</div>
             {group.items.map((item) => (
-              <Link
+              <NavLink
                 key={item.href}
-                href={item.href}
+                item={item}
                 onClick={() => setOpen(false)}
                 className={`mb-0.5 block rounded-lg px-2.5 py-[9px] text-sm no-underline ${
-                  isActive(pathname, item.href) ? "bg-navy-2 font-bold text-white" : "text-white/85 hover:bg-white/8"
+                  !item.external && isActive(pathname, item.href) ? "bg-navy-2 font-bold text-white" : "text-white/85 hover:bg-white/8"
                 }`}
-              >
-                {item.label}
-              </Link>
+              />
             ))}
           </div>
         ))}
