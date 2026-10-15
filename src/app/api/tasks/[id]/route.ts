@@ -1,6 +1,7 @@
 import { dueDateConfigured, queryRecordsFromRagic, updateTaskInRagic } from "@/server/bot/ragic";
 import { DATE_RE } from "@/server/modules/dates";
 import { VALID_TASK_STATUSES } from "@/server/modules/tasks";
+import { listAllSchedule, updateSchedule } from "@/server/ragic/schedule";
 import { errorMessage, json, readBody } from "@/server/http";
 
 export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) {
@@ -8,10 +9,10 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) 
   const body = await readBody<{ status?: unknown; source?: unknown; dueDate?: unknown }>(req);
 
   // 桌面版待辦頁把 /ragicforms21/1（待辦）跟 /ragicforms21/8（排班行程）兩張表的紀錄混在
-  // 同一個清單顯示，紀錄編號互不相干、會撞號。這支只會寫 /ragicforms21/1，所以呼叫端一定要
-  // 明確帶 source:'todo' 才放行，避免把行程（/8）的紀錄誤寫進 /1 撞號的那筆。
-  if (body.source !== "todo") {
-    return json({ success: false, error: "此頁僅能編輯待辦／備忘／空檔，行程請至行事曆頁面修改" }, 400);
+  // 同一個清單顯示，紀錄編號互不相干、會撞號。呼叫端一定要明確帶 source，
+  // 才知道要寫哪一張表，避免把行程的紀錄誤寫進撞號的待辦那筆。
+  if (body.source !== "todo" && body.source !== "schedule") {
+    return json({ success: false, error: "source 必須是 todo 或 schedule" }, 400);
   }
 
   // 狀態與到期日至少要改一個
@@ -34,6 +35,24 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) 
   const userId = process.env["LINE_USER_ID"];
   if (!userId) {
     return json({ success: false, error: "LINE_USER_ID is not set" }, 500);
+  }
+
+  // 行程（/8）：只能改狀態（完成／準備中），其他欄位請到行事曆改
+  if (body.source === "schedule") {
+    if (body.status === undefined || body.dueDate !== undefined) {
+      return json({ success: false, error: "行程只能更改狀態，其他請至行事曆頁面修改" }, 400);
+    }
+    try {
+      const entry = (await listAllSchedule()).find((e) => String(e.id) === id && e.userId === userId && e.kind === "個人行程");
+      if (!entry) return json({ success: false, error: "找不到這筆行程" }, 404);
+      // 已取消的行程維持取消，不被「準備中」蓋掉
+      if (entry.status === "取消") return json({ success: false, error: "此行程已取消，請至行事曆恢復" }, 400);
+      await updateSchedule(id, { status: body.status === "完成" ? "完成" : "預定" });
+      return json({ success: true });
+    } catch (err) {
+      console.error("更新行程狀態失敗:", err);
+      return json({ success: false, error: errorMessage(err, "更新失敗") }, 500);
+    }
   }
 
   try {

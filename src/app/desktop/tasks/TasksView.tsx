@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { EmptyRow, Message, Modal, ModalActions, PageHeader, type MessageState } from "@/components/ui";
 import { apiFetch, errorText, sendJson } from "@/lib/client";
+import { useHideDone } from "@/lib/taskPrefs";
 import type { TaskListItem } from "@/lib/types";
 
 // 「備忘」是內部沿用的類型值，顯示給使用者看的文字一律用「待辦」
@@ -18,9 +19,11 @@ export function TasksView() {
   const [keyword, setKeyword] = useState("");
   const [appliedKeyword, setAppliedKeyword] = useState("");
   const [editing, setEditing] = useState<TaskListItem | null>(null);
+  const hideDone = useHideDone();
+  const [toggleError, setToggleError] = useState("");
   // 篩選條件或 reloadCount 改變就重新查詢；結果帶著查詢當下的 key，key 對不上就視為載入中
   const [reloadCount, setReloadCount] = useState(0);
-  const requestKey = `${type}|${status}|${appliedKeyword}|${reloadCount}`;
+  const requestKey = `${type}|${status}|${appliedKeyword}|${reloadCount}|${hideDone}`;
   const [result, setResult] = useState<{ key: string; rows: Rows } | null>(null);
   const rows: Rows = result?.key === requestKey ? result.rows : { status: "loading" };
 
@@ -30,13 +33,24 @@ export function TasksView() {
     if (type) query.set("type", type);
     if (appliedKeyword) query.set("keyword", appliedKeyword);
     apiFetch<TaskListItem[]>(`/api/tasks${query.size ? `?${query}` : ""}`).then(
-      (all) => alive && setResult({ key: requestKey, rows: { status: "ok", tasks: status ? all.filter((t) => t.status === status) : all } }),
+      (all) => alive && setResult({ key: requestKey, rows: { status: "ok", tasks: status ? all.filter((t) => t.status === status) : hideDone ? all.filter((t) => t.status !== "完成") : all } }),
       (err) => alive && setResult({ key: requestKey, rows: { status: "error", message: errorText(err) } }),
     );
     return () => {
       alive = false;
     };
-  }, [type, status, appliedKeyword, requestKey]);
+  }, [type, status, appliedKeyword, hideDone, requestKey]);
+
+  // 直接在清單上切換完成／準備中，不用開彈窗
+  async function toggleDone(t: TaskListItem) {
+    setToggleError("");
+    try {
+      await sendJson(`/api/tasks/${t.id}`, "PATCH", { status: t.status === "完成" ? "準備中" : "完成", source: t.source ?? "todo" });
+      setReloadCount((n) => n + 1);
+    } catch (err) {
+      setToggleError(errorText(err, "更改狀態失敗"));
+    }
+  }
 
   // 排班行程（/ragicforms21/8）在這頁唯讀，點「檢視」直接導去行事曆對應日期；
   // 只有待辦（/ragicforms21/1）才會開編輯彈窗。
@@ -86,6 +100,7 @@ export function TasksView() {
               <option value="">全部</option>
               <option value="準備中">準備中</option>
               <option value="完成">完成</option>
+              <option value="取消">取消</option>
             </select>
           </div>
           <div className="form-field col-span-2 min-w-[220px] flex-1">
@@ -115,6 +130,8 @@ export function TasksView() {
         </div>
       </div>
 
+      {toggleError ? <p className="mb-3 text-sm text-danger">{toggleError}</p> : null}
+
       {/* 手機：卡片清單 */}
       <div className="flex flex-col gap-2.5 md:hidden">
         {rows.status === "loading" ? (
@@ -125,17 +142,24 @@ export function TasksView() {
           <p className="empty-hint">沒有符合的待辦事項</p>
         ) : (
           rows.tasks.map((t, idx) => (
-            <button key={idx} type="button" className="list-card" onClick={() => openItem(t)}>
+            <div
+              key={idx}
+              role="button"
+              tabIndex={0}
+              className="list-card"
+              onClick={() => openItem(t)}
+              onKeyDown={(e) => e.key === "Enter" && openItem(t)}
+            >
               <div className="mb-1.5 flex items-center gap-1.5">
-                <span className={`badge ${t.status === "完成" ? "badge-teal" : "badge-gold"}`}>{t.status}</span>
+                <span className={`badge ${t.status === "完成" ? "badge-teal" : t.status === "取消" ? "badge-muted" : "badge-gold"}`}>{t.status}</span>
                 <span className={`badge ${t.type === "行程" ? "badge-teal" : "badge-muted"}`}>{labelForType(t.type)}</span>
-                <span className="ml-auto text-xs text-navy-2">{t.source === "schedule" ? "檢視 ›" : "編輯 ›"}</span>
+                <DoneButton task={t} onToggle={toggleDone} className="ml-auto" />
               </div>
               <div className="font-semibold">{t.content}</div>
               <div className="mt-1 text-xs text-muted">
                 {t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : "（未排定）"}　建立 {t.createdAt}{t.dueDate ? `　到期 ${t.dueDate}` : ""}
               </div>
-            </button>
+            </div>
           ))
         )}
       </div>
@@ -165,7 +189,7 @@ export function TasksView() {
               rows.tasks.map((t, idx) => (
                 <tr key={idx} className="cursor-pointer" onClick={() => openItem(t)}>
                   <td>
-                    <span className={`badge ${t.status === "完成" ? "badge-teal" : "badge-gold"}`}>{t.status}</span>
+                    <span className={`badge ${t.status === "完成" ? "badge-teal" : t.status === "取消" ? "badge-muted" : "badge-gold"}`}>{t.status}</span>
                   </td>
                   <td>
                     <span className={`badge ${t.type === "行程" ? "badge-teal" : "badge-muted"}`}>{labelForType(t.type)}</span>
@@ -175,7 +199,8 @@ export function TasksView() {
                     {t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : t.dueDate ? `到期 ${t.dueDate}` : "（未排定）"}
                   </td>
                   <td className="form-hint whitespace-nowrap">{t.createdAt}</td>
-                  <td>
+                  <td className="whitespace-nowrap">
+                    <DoneButton task={t} onToggle={toggleDone} />{" "}
                     <button type="button" className="btn btn-outline btn-sm">
                       {t.source === "schedule" ? "檢視" : "編輯"}
                     </button>
@@ -198,6 +223,24 @@ export function TasksView() {
         />
       )}
     </>
+  );
+}
+
+// 完成／還原按鈕；取消的行程要到行事曆恢復，這裡不給按
+function DoneButton({ task, onToggle, className = "" }: { task: TaskListItem; onToggle: (t: TaskListItem) => void; className?: string }) {
+  if (task.status === "取消") return null;
+  const done = task.status === "完成";
+  return (
+    <button
+      type="button"
+      className={`btn btn-outline btn-sm ${className}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle(task);
+      }}
+    >
+      {done ? "還原" : "✓ 完成"}
+    </button>
   );
 }
 

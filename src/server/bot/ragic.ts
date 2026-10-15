@@ -190,7 +190,7 @@ export function scheduleEntryToTaskListItem(e: ScheduleEntry): TaskListItem {
     id: e.id,
     type: "行程",
     content: e.title,
-    status: e.status === "正常" ? "準備中" : "完成",
+    status: e.status === "完成" ? "完成" : e.status === "取消" ? "取消" : "準備中",
     time: e.allDay ? "" : e.start,
     date: mm && dd ? `${mm}/${dd}` : null,
     createdAt: `${yyyy ?? ""}/${mm ?? ""}/${dd ?? ""} ${e.start || "00:00"}:00`,

@@ -171,7 +171,7 @@ export interface RosterEntry {
   end: string;
   title: string;
   allDay: boolean;
-  status: "正常" | "取消";
+  status: "正常" | "取消" | "完成";
   kind: string;
   color: string;
   batchId: string;

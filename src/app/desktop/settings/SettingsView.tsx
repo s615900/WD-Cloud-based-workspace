@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui";
 import { apiFetch, errorText } from "@/lib/client";
+import { setHideDone, useHideDone } from "@/lib/taskPrefs";
 import { PushCard } from "./PushCard";
 
 interface DesktopSettings {
@@ -16,6 +17,7 @@ const STATUS_CLASS = { connected: "badge-teal", not_configured: "badge-danger" }
 export function SettingsView() {
   const [data, setData] = useState<DesktopSettings | null>(null);
   const [error, setError] = useState("");
+  const hideDone = useHideDone();
 
   useEffect(() => {
     apiFetch<DesktopSettings>("/api/desktop-settings")
@@ -42,6 +44,17 @@ export function SettingsView() {
         ) : (
           <p className="empty-hint">載入中…</p>
         )}
+      </div>
+
+      <div className="card mb-5">
+        <h3>待辦事項顯示</h3>
+        <label className="flex cursor-pointer items-start gap-2.5">
+          <input type="checkbox" className="mt-1" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
+          <span>
+            已完成的事項不顯示在「全部」清單
+            <span className="form-hint block">只有在待辦事項頁把「狀態」篩選選成「完成」時才會看到。此設定只存在這個瀏覽器。</span>
+          </span>
+        </label>
       </div>
 
       <PushCard />

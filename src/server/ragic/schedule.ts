@@ -13,7 +13,8 @@ import { ragicList, ragicCreate, ragicUpdate, ragicDelete, type RagicRecordData 
 import { F_SCHEDULE } from "./fields";
 
 export type ScheduleKind = "班別" | "個人行程" | "客戶預約";
-export type ScheduleStatus = "正常" | "取消";
+// 完成：待辦事項頁把個人行程標成已完成用（仍佔用時段，只有「取消」才會釋出空檔）
+export type ScheduleStatus = "正常" | "取消" | "完成" | "預定"; // 預定 = Ragic 選單裡「正常」的實際選項名，讀回來一律當正常
 
 export interface ScheduleEntry {
   id: number;
@@ -58,7 +59,7 @@ function toScheduleEntry(id: string, r: RagicRecordData): ScheduleEntry {
     end: String(r["結束時間"] ?? ""),
     title: String(r["標題"] ?? ""),
     allDay: r["全天"] === "是",
-    status: r["狀態"] === "取消" ? "取消" : "正常",
+    status: r["狀態"] === "取消" ? "取消" : r["狀態"] === "完成" ? "完成" : "正常",
     templateCode: String(r["來源模板"] ?? ""),
     batchId: String(r["排班群組"] ?? ""),
     color: String(r["班別顏色"] ?? ""),
