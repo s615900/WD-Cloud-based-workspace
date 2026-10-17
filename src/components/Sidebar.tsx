@@ -154,7 +154,7 @@ export function Sidebar() {
 
       {/* 手機抽屜：桌面寬度不顯示 */}
       <aside
-        className={`fixed left-0 top-0 z-[80] hidden h-screen w-[248px] overflow-y-auto bg-navy px-4 pt-[max(24px,env(safe-area-inset-top))] pb-[max(24px,env(safe-area-inset-bottom))] text-white shadow-[0_0_24px_rgba(0,0,0,0.25)] transition-transform max-lg:block ${
+        className={`fixed left-0 top-0 z-[80] hidden h-dvh w-[248px] overflow-y-auto overscroll-contain bg-navy px-4 pt-[max(24px,env(safe-area-inset-top))] pb-[max(24px,env(safe-area-inset-bottom))] text-white shadow-[0_0_24px_rgba(0,0,0,0.25)] transition-transform max-lg:block ${
           open ? "" : "-translate-x-full"
         }`}
       >

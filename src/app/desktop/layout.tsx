@@ -8,7 +8,7 @@ export default async function DesktopLayout({ children }: LayoutProps<"/desktop"
   await connection();
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       <Sidebar />
       <main className="mx-auto w-full max-w-[1280px] min-w-0 flex-1 px-10 pt-8 pb-16 max-md:px-4 md:max-lg:px-6 max-lg:pt-3 max-lg:pb-10">
         {children}

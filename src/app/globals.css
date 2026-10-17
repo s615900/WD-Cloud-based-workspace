@@ -174,3 +174,44 @@
 .rich-content ol {
   list-style: decimal;
 }
+
+/* ── iPhone / iOS 手機版調整（只在手機寬度生效，電腦版不受影響） ─────────────── */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+@media (max-width: 767px) {
+  /* 輸入框字級 16px：iOS 點擊輸入框時才不會自動放大畫面 */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .input,
+  .input-sm {
+    font-size: 16px;
+  }
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+  }
+  /* 觸控區 ≥ 44px */
+  .btn {
+    min-height: 44px;
+  }
+  .btn-sm {
+    min-height: 36px;
+  }
+  .input {
+    min-height: 44px;
+  }
+  /* 全螢幕彈窗：避開底部 Home 橫條、內容可捲動且不捲動穿透 */
+  .modal-panel {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 20px);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
