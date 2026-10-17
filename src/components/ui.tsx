@@ -51,7 +51,7 @@ export function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="modal-panel max-h-[calc(100dvh-80px)] w-[560px] max-w-[calc(100vw-40px)] overflow-y-auto rounded-card bg-white p-6 shadow-modal max-sm:h-full max-sm:max-h-dvh max-sm:w-full max-sm:max-w-full max-sm:rounded-none max-sm:px-4 max-sm:py-5">
+      <div className="max-h-[calc(100vh-80px)] w-[560px] max-w-[calc(100vw-40px)] overflow-y-auto rounded-card bg-white p-6 shadow-modal max-sm:h-full max-sm:max-h-screen max-sm:w-full max-sm:max-w-full max-sm:rounded-none max-sm:px-4 max-sm:py-5">
         {title ? <h2 className="mb-4 text-lg font-bold text-navy">{title}</h2> : null}
         {children}
       </div>
