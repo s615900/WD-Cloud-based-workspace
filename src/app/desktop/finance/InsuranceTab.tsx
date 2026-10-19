@@ -35,7 +35,7 @@ export function InsuranceTab({
     { key: "payYears", label: "繳費年期（年）", kind: "number" as const, half: true, hint: "0＝未填" },
     { key: "payEnd", label: "繳費終止日", kind: "date" as const, half: true },
     { key: "maturity", label: "滿期日", kind: "date" as const, half: true },
-    { key: "payMode", label: "繳費方式", kind: "select" as const, options: opts(Object.values(INS_PAY_MODE)), half: true, hint: "信用卡／轉帳：繳費日自動產生支出；自行繳：只提醒" },
+    { key: "payMode", label: "繳費方式", kind: "select" as const, options: opts(Object.values(INS_PAY_MODE)), half: true, hint: "信用卡／轉帳：繳費日自動產生支出；自行繳：不自動入帳，只在總覽列出到期日" },
     {
       key: "account",
       label: "扣款帳戶",

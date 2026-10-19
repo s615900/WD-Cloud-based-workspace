@@ -16,7 +16,7 @@ function describe(r: RuleItem): string {
   return `每月・${r.day} 號`;
 }
 
-// 帳戶與分類頁下半部：定期收支規則、財務設定（提醒）、每日引擎（預覽／手動執行）
+// 帳戶與分類頁下半部：定期收支規則、每日引擎（預覽／手動執行）
 export function RulesPanel({
   accounts,
   categories,
@@ -31,7 +31,6 @@ export function RulesPanel({
   const rules = useApi<RuleItem[]>("/api/finance/rules", version);
   const settings = useApi<FinanceSettings>("/api/finance/settings", version);
   const [editing, setEditing] = useState<RuleItem | "new" | null>(null);
-  const [editSettings, setEditSettings] = useState(false);
   const [run, setRun] = useState<RunDailyResult | null>(null);
   const [runMsg, setRunMsg] = useState<{ text: string; kind?: "error" | "ok" }>({ text: "" });
   const [busy, setBusy] = useState(false);
@@ -44,7 +43,7 @@ export function RulesPanel({
     try {
       const res = await apiFetch<RunDailyResult>(`/api/finance/run-daily${dryRun ? "?dryRun=1" : ""}`, { method: "POST" });
       setRun(res);
-      setRunMsg({ text: dryRun ? "預覽完成（沒有寫入任何資料）" : `執行完成：新增 ${res.created.length} 筆明細${res.pushed ? "，已推播 LINE" : ""}`, kind: "ok" });
+      setRunMsg({ text: dryRun ? "預覽完成（沒有寫入任何資料）" : `執行完成：新增 ${res.created.length} 筆明細`, kind: "ok" });
       if (!dryRun) {
         settings.reload();
         onChanged();
@@ -81,7 +80,6 @@ export function RulesPanel({
     { key: "day", label: "執行日", kind: "number" as const, half: true, hint: "每月／每年＝幾號（29–31 遇小月自動夾到月底）；每週＝星期幾（1=週一…7=週日）" },
     { key: "start", label: "開始日", kind: "date" as const, half: true },
     { key: "end", label: "結束日（可空）", kind: "date" as const, half: true },
-    { key: "remindDays", label: "提前幾天提醒", kind: "number" as const, half: true },
     { key: "autoPost", label: "自動入帳（取消勾選＝產生「預定」，等你確認）", kind: "check" as const },
     { key: "active", label: "啟用", kind: "check" as const },
   ];
@@ -152,12 +150,9 @@ export function RulesPanel({
       <div className={`${s.card} ${s.sectionGap}`}>
         <div className={s.toolbar}>
           <h3 className={s.cardTitle} style={{ margin: 0 }}>
-            每日引擎與提醒
+            每日引擎
           </h3>
           <span className={s.spacer} />
-          <button className={s.btn} onClick={() => setEditSettings(true)} disabled={!settings.data}>
-            提醒設定
-          </button>
           <button className={s.btn} onClick={() => runDaily(true)} disabled={busy}>
             預覽今天會產生什麼
           </button>
@@ -166,8 +161,7 @@ export function RulesPanel({
           </button>
         </div>
         <p className={s.inlineNote} data-testid="engine-settings">
-          提醒 {settings.data?.remindOn ? "開" : "關"}・預設提前 {settings.data?.defaultRemindDays ?? "—"} 天・上次執行日 {settings.data?.lastRun || "尚未執行"}。
-          排程由 cron-job.org 每天 08:30 呼叫 /api/cron/finance-daily 自動執行；這裡是手動補跑，重複執行不會產生重複明細。
+          上次執行日 {settings.data?.lastRun || "尚未執行"}。「立即執行」會從上次執行日隔天補到今天（產生定期、保險、貸款明細，結帳日產生信用卡帳單，截止日自動扣繳）；重複執行不會產生重複明細。
         </p>
         <Msg text={runMsg.text} kind={runMsg.kind} />
         {run ? (
@@ -194,7 +188,6 @@ export function RulesPanel({
                 ⚠ {w}
               </p>
             ))}
-            {run.pushText ? <div className={s.pre}>{run.pushText}</div> : <p className={s.sub}>目前沒有需要推播的項目。</p>}
           </div>
         ) : null}
       </div>
@@ -204,8 +197,8 @@ export function RulesPanel({
           title={editing === "new" ? "新增定期規則" : `編輯規則 ${editing.code}`}
           initial={
             editing === "new"
-              ? { name: "", type: TX_TYPE.支出 as TxType, amount: "", account: activeAccounts[0]?.code ?? "", toAccount: "", category: "", freq: RULE_FREQ.每月, intervalN: "1", day: "", start: "", end: "", remindDays: "3", autoPost: true, active: true }
-              : { name: editing.name, type: editing.type, amount: String(editing.amount), account: editing.account, toAccount: editing.toAccount, category: editing.category, freq: editing.freq, intervalN: String(editing.intervalN || 1), day: String(editing.day), start: editing.start, end: editing.end, remindDays: String(editing.remindDays), autoPost: editing.autoPost, active: editing.active }
+              ? { name: "", type: TX_TYPE.支出 as TxType, amount: "", account: activeAccounts[0]?.code ?? "", toAccount: "", category: "", freq: RULE_FREQ.每月, intervalN: "1", day: "", start: "", end: "", autoPost: true, active: true }
+              : { name: editing.name, type: editing.type, amount: String(editing.amount), account: editing.account, toAccount: editing.toAccount, category: editing.category, freq: editing.freq, intervalN: String(editing.intervalN || 1), day: String(editing.day), start: editing.start, end: editing.end, autoPost: editing.autoPost, active: editing.active }
           }
           fields={fields}
           onClose={() => setEditing(null)}
@@ -218,23 +211,6 @@ export function RulesPanel({
         />
       ) : null}
 
-      {editSettings && settings.data ? (
-        <EntityForm
-          title="提醒設定"
-          initial={{ remindOn: settings.data.remindOn, remindTime: settings.data.remindTime, defaultRemindDays: String(settings.data.defaultRemindDays) }}
-          fields={[
-            { key: "remindOn", label: "開啟 LINE 提醒推播", kind: "check" },
-            { key: "defaultRemindDays", label: "貸款、保費預設提前幾天提醒", kind: "number", half: true },
-            { key: "remindTime", label: "提醒時間（僅記錄）", kind: "text", half: true, hint: "實際推播時間以 cron-job.org 的排程為準" },
-          ]}
-          onClose={() => setEditSettings(false)}
-          onSubmit={async (v) => {
-            await sendJson("/api/finance/settings", "PATCH", { ...v, defaultRemindDays: Number(v.defaultRemindDays) });
-            setEditSettings(false);
-            settings.reload();
-          }}
-        />
-      ) : null}
     </>
   );
 }

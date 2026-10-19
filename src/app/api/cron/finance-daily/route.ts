@@ -1,5 +1,5 @@
 // 財務每日引擎（給外部排程服務打，例如 cron-job.org，建議每天 08:30 Asia/Taipei）。
-// 用 ?key= 帶 CRON_SECRET 驗證；?dryRun=1 只回傳將產生的內容，不寫入、不推播。
+// 用 ?key= 帶 CRON_SECRET 驗證；?dryRun=1 只回傳將產生的內容，不寫入。
 import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { runDaily } from "@/server/finance/daily";

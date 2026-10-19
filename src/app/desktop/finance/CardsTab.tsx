@@ -57,7 +57,7 @@ export function CardsTab({
               {set ? (
                 <p className={s.inlineNote}>
                   結帳日 {set.closingDay} 號・繳款截止日 {set.dueDay} 號・額度 {money(set.limit)}・
-                  {set.autoDebitAccount ? `自動扣繳 ${nameOf(set.autoDebitAccount)}（${set.debitMode}）` : "手動繳款"}・提前 {set.remindDays} 天提醒
+                  {set.autoDebitAccount ? `自動扣繳 ${nameOf(set.autoDebitAccount)}（${set.debitMode}）` : "手動繳款"}
                 </p>
               ) : (
                 <p className={s.inlineNote}>尚未設定結帳日／繳款截止日，系統不會產生帳單。</p>
@@ -153,14 +153,12 @@ export function CardsTab({
               limit: set ? String(set.limit) : "0",
               autoDebitAccount: set?.autoDebitAccount ?? "",
               debitMode: set?.debitMode || DEBIT_MODE.全額,
-              remindDays: set ? String(set.remindDays) : "3",
             };
           })()}
           fields={[
             { key: "closingDay", label: "結帳日（每月幾號）", kind: "number", half: true },
             { key: "dueDay", label: "繳款截止日（每月幾號）", kind: "number", half: true, hint: "小於等於結帳日視為次月" },
             { key: "limit", label: "信用額度", kind: "number", half: true },
-            { key: "remindDays", label: "提前幾天提醒", kind: "number", half: true },
             {
               key: "autoDebitAccount",
               label: "自動扣繳帳戶",

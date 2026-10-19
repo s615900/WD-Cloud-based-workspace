@@ -110,7 +110,6 @@ export function toRule(id: string, rec: FinanceRecord): RuleItem {
     start: normalizeRagicDate(rec["開始日" satisfies keyof typeof F4]),
     end: normalizeRagicDate(rec["結束日" satisfies keyof typeof F4]),
     autoPost: isYes(rec["自動入帳" satisfies keyof typeof F4]),
-    remindDays: num(rec["提醒天數" satisfies keyof typeof F4]),
     active: isYes(rec["啟用" satisfies keyof typeof F4]),
   };
 }
@@ -132,7 +131,6 @@ export interface RuleBody {
   start?: unknown;
   end?: unknown;
   autoPost?: unknown;
-  remindDays?: unknown;
   active?: unknown;
 }
 
@@ -155,7 +153,6 @@ async function ruleFromBody(body: RuleBody, base?: RuleItem): Promise<Omit<RuleI
     start: requiredDate(pick("start", base?.start), "開始日"),
     end: optionalDate(pick("end", base?.end), "結束日"),
     autoPost: Boolean(pick("autoPost", base?.autoPost ?? false)),
-    remindDays: int(pick("remindDays", base?.remindDays ?? 3), "提醒天數", 0, 60),
     active: pick("active", base?.active ?? true) !== false,
   };
   if (!rule.name) fail("請輸入規則名稱");
@@ -210,7 +207,6 @@ function ruleFields(code: string | null, r: Omit<RuleItem, "id" | "code">): Writ
     [F4.開始日]: r.start,
     [F4.結束日]: r.end,
     [F4.自動入帳]: yn(r.autoPost),
-    [F4.提醒天數]: r.remindDays,
     [F4.啟用]: yn(r.active),
   };
   if (code) f[F4.規則編號] = code;
@@ -241,7 +237,6 @@ export function toCardSetting(id: string, rec: FinanceRecord): CardSetting {
     limit: num(rec["信用額度" satisfies keyof typeof F5]),
     autoDebitAccount: r5(rec, "自動扣繳帳戶"),
     debitMode: r5(rec, "扣繳方式"),
-    remindDays: num(rec["提醒天數" satisfies keyof typeof F5]),
   };
 }
 
@@ -256,7 +251,6 @@ export interface CardSettingBody {
   limit?: unknown;
   autoDebitAccount?: unknown;
   debitMode?: unknown;
-  remindDays?: unknown;
 }
 
 async function cardFromBody(body: CardSettingBody, base?: CardSetting): Promise<Omit<CardSetting, "id">> {
@@ -281,7 +275,6 @@ async function cardFromBody(body: CardSettingBody, base?: CardSetting): Promise<
     limit: int(pick("limit", base?.limit ?? 0), "信用額度", 0),
     autoDebitAccount: debit,
     debitMode: mode,
-    remindDays: int(pick("remindDays", base?.remindDays ?? 3), "提醒天數", 0, 60),
   };
 }
 
@@ -293,7 +286,6 @@ function cardFields(c: Omit<CardSetting, "id">): WriteFields {
     [F5.信用額度]: c.limit,
     [F5.自動扣繳帳戶]: c.autoDebitAccount,
     [F5.扣繳方式]: c.debitMode,
-    [F5.提醒天數]: c.remindDays,
   };
 }
 
@@ -812,38 +804,19 @@ export async function updatePolicy(recordId: string, body: PolicyBody): Promise<
 }
 
 // ── 財務設定（F10，單筆表）────────────────────────────────────
+// 只用「上次執行日」（每日引擎補跑區間的起點）。F10 的提醒欄位不再使用，讀寫都不碰。
 // ⚠️ record id 0 是有效值：用 typeof／null 判斷有沒有紀錄，不可用 falsy。
 
-const DEFAULT_SETTINGS: FinanceSettings = { id: null, remindOn: true, remindTime: "08:30", defaultRemindDays: 3, lastRun: "" };
-
 export async function getSettings(): Promise<FinanceSettings> {
-  const rows = await finList("F10_SETTINGS");
-  const row = rows[0];
-  if (!row) return DEFAULT_SETTINGS;
-  const rec = row.rec;
-  const days = numOrNull(rec["預設提醒天數" satisfies keyof typeof F10]);
-  return {
-    id: row.id,
-    remindOn: isYes(rec["提醒開關" satisfies keyof typeof F10]),
-    remindTime: str(rec["提醒時間" satisfies keyof typeof F10]) || DEFAULT_SETTINGS.remindTime,
-    defaultRemindDays: days ?? DEFAULT_SETTINGS.defaultRemindDays,
-    lastRun: normalizeRagicDate(rec["上次執行日" satisfies keyof typeof F10]),
-  };
+  const row = (await finList("F10_SETTINGS"))[0];
+  if (!row) return { id: null, lastRun: "" };
+  return { id: row.id, lastRun: normalizeRagicDate(row.rec["上次執行日" satisfies keyof typeof F10]) };
 }
 
-export async function saveSettings(patch: Partial<Omit<FinanceSettings, "id">>): Promise<void> {
+export async function saveSettings(patch: { lastRun: string }): Promise<void> {
+  if (patch.lastRun && !DATE_RE.test(patch.lastRun)) fail("上次執行日格式錯誤");
   const current = await getSettings();
-  const next = { ...current, ...patch };
-  if (next.defaultRemindDays < 0 || !Number.isInteger(next.defaultRemindDays)) fail("預設提醒天數必須是 0 以上的整數");
-  if (next.lastRun && !DATE_RE.test(next.lastRun)) fail("上次執行日格式錯誤");
-  const fields: WriteFields = {
-    [F10.設定名稱]: "財務設定",
-    [F10.上次執行日]: next.lastRun,
-    // 勾選欄位：Yes＝開、空字串＝關（不是「開／關」）
-    [F10.提醒開關]: next.remindOn ? "Yes" : "",
-    [F10.提醒時間]: next.remindTime,
-    [F10.預設提醒天數]: next.defaultRemindDays,
-  };
-  if (current.id === null) await finCreate("F10_SETTINGS", fields);
-  else await finUpdate("F10_SETTINGS", current.id, fields);
+  // 更新時只送這一個欄位，其他欄位維持 Ragic 現況
+  if (current.id === null) await finCreate("F10_SETTINGS", { [F10.設定名稱]: "財務設定", [F10.上次執行日]: patch.lastRun });
+  else await finUpdate("F10_SETTINGS", current.id, { [F10.上次執行日]: patch.lastRun });
 }

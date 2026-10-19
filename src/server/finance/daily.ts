@@ -1,16 +1,15 @@
 // 每日引擎 run-daily。順序有依賴，不可調換（04 §3）：
 //   1 補跑區間 → 2 定期規則 → 3 保險 → 4 貸款 → 5 信用卡結帳（分期 → 彙總 → 建帳單）
-//   → 6 卡費自動扣繳 → 7 逾期標記 → 8 寫回上次執行日 → 9 LINE 推播彙整
-// 全程以「來源鍵」防重複：重跑、補跑都不會重複產生。dryRun 只回傳會做什麼，不寫入、不推播。
+//   → 6 卡費自動扣繳 → 7 逾期標記 → 8 寫回上次執行日
+// 全程以「來源鍵」防重複：重跑、補跑都不會重複產生。dryRun 只回傳會做什麼，不寫入。
 
-import type { DueItem, RunDailyResult, StatementItem } from "@/lib/financeTypes";
-import { pushTextMessageToOwner } from "@/server/bot/linePush";
+import type { RunDailyResult, StatementItem } from "@/lib/financeTypes";
 import { todayYMD } from "@/server/modules/dates";
 import { TxWriter } from "./autoTx";
 import { syncStatementPaid } from "./cards";
 import { addDaysYMD, addMonthsYM, eachDay } from "./dateUtil";
 import { createStatement, saveSettings, writeInstallmentStatus, writeLoanStatus, writeStatementStatus, writeStatementSystemAmount } from "./entities";
-import { computeDues, loadContext, loanSchedule, policySchedule } from "./engine";
+import { loadContext, loanSchedule, policySchedule } from "./engine";
 import { billMonthOfPeriod } from "./installment";
 import { paymentDates } from "./insurance";
 import { occursOn } from "./recurrence";
@@ -32,7 +31,6 @@ export interface RunOptions {
   dryRun: boolean;
   today?: string; // 測試用，預設台北今天
   from?: string; // 手動指定補跑起點，預設＝上次執行日隔天
-  push?: boolean; // 預設正式執行才推播
 }
 
 const ymd8 = (d: string) => d.replaceAll("-", "");
@@ -240,23 +238,7 @@ export async function runDaily(opts: RunOptions): Promise<RunDailyResult> {
   }
 
   // 8. 寫回上次執行日
-  const firstRunToday = lastRun !== today;
   if (!opts.dryRun) await saveSettings({ lastRun: today });
-
-  // 9. LINE 推播彙整：到期前 N 天的項目合併成一則；沒有項目不推
-  ctx.statements = statements;
-  const pushText = buildPushText(computeDues(ctx, today, 30), today, ctx.settings.remindOn);
-  let pushed = false;
-  const shouldPush = (opts.push ?? !opts.dryRun) && !opts.dryRun && firstRunToday;
-  if (pushText && shouldPush) {
-    try {
-      await pushTextMessageToOwner(pushText);
-      pushed = true;
-    } catch (err) {
-      console.error("財務推播失敗:", err);
-      warnings.push("LINE 推播失敗（明細已正常產生）");
-    }
-  }
 
   return {
     success: true,
@@ -275,24 +257,5 @@ export async function runDaily(opts: RunOptions): Promise<RunDailyResult> {
     skippedExisting: writer.skippedExisting,
     statements: statementLog,
     warnings,
-    pushText,
-    pushed,
   };
-}
-
-const KIND_ICON: Record<DueItem["kind"], string> = { 卡費: "💳", 保費: "🛡️", 貸款: "🏦", 定期: "🔁", 待確認: "❓" };
-
-export function formatDueLine(d: DueItem): string {
-  const when = d.daysLeft < 0 ? `已逾 ${-d.daysLeft} 天` : d.daysLeft === 0 ? "今天" : `${d.daysLeft} 天後`;
-  const md = d.date.slice(5).replace("-", "/");
-  return `${KIND_ICON[d.kind]} ${md} ${d.title} $${d.amount.toLocaleString("en-US")}（${when}${d.detail ? `・${d.detail}` : ""}）`;
-}
-
-// 推播內容：只放「在提醒天數內」或已逾期的項目。沒有就回 null（不推）。
-export function buildPushText(dues: DueItem[], today: string, remindOn: boolean): string | null {
-  if (!remindOn) return null;
-  const due = dues.filter((d) => d.daysLeft <= (d.remindDays ?? 3));
-  if (due.length === 0) return null;
-  const lines = due.map(formatDueLine);
-  return [`💰 財務提醒（${today.slice(5).replace("-", "/")}）`, ...lines].join("\n");
 }

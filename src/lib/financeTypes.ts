@@ -86,7 +86,6 @@ export interface RuleItem {
   start: string;
   end: string;
   autoPost: boolean; // 是＝直接已入帳；否＝產生「預定」等確認
-  remindDays: number;
   active: boolean;
 }
 
@@ -98,7 +97,6 @@ export interface CardSetting {
   limit: number;
   autoDebitAccount: string;
   debitMode: string; // 全額／最低
-  remindDays: number;
 }
 
 export interface StatementItem {
@@ -211,9 +209,6 @@ export interface PolicyView extends PolicyItem {
 
 export interface FinanceSettings {
   id: string | null; // F10 是單筆表，record id 0 是有效值
-  remindOn: boolean;
-  remindTime: string;
-  defaultRemindDays: number;
   lastRun: string;
 }
 
@@ -224,7 +219,6 @@ export interface DueItem {
   amount: number;
   daysLeft: number; // 負數＝已逾期／已過期
   detail?: string;
-  remindDays?: number; // 提前幾天提醒（推播用）
 }
 
 export interface CardOverview {
@@ -254,6 +248,4 @@ export interface RunDailyResult {
   skippedExisting: number;
   statements: { code: string; action: string }[];
   warnings: string[];
-  pushText: string | null;
-  pushed: boolean;
 }

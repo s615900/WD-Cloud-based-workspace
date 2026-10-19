@@ -1,6 +1,6 @@
 // 財務引擎：一次載入所有資料（context），再由純函式算出各種「計算值」——
 // 貸款剩餘本金、保單年度保費、30 天內待付款、總覽。計算值只在記憶體裡，不寫回 Ragic。
-// run-daily（daily.ts）、總覽 API、LINE 指令都共用這裡，避免各算各的。
+// run-daily（daily.ts）與總覽 API 共用這裡，避免各算各的。
 
 import type {
   AccountItem,
@@ -143,14 +143,12 @@ export function computeDues(ctx: FinanceContext, today: string, horizonDays = 30
   const dues: DueItem[] = [];
   const left = (date: string) => daysBetween(today, date);
   const accName = (code: string) => ctx.accounts.find((a) => a.code === code)?.name ?? code;
-  const defaultRemind = ctx.settings.defaultRemindDays;
 
   // 卡費：未繳足的帳單（逾期的也列出，daysLeft 為負）
   for (const s of ctx.statements) {
     const remaining = s.payable - s.paid;
     if (s.status === STMT_STATUS.已繳 || remaining <= 0) continue;
     if (s.dueDate > to) continue;
-    const card = ctx.cards.find((c) => c.account === s.card);
     dues.push({
       date: s.dueDate,
       kind: "卡費",
@@ -158,7 +156,6 @@ export function computeDues(ctx: FinanceContext, today: string, horizonDays = 30
       amount: remaining,
       daysLeft: left(s.dueDate),
       detail: s.status === STMT_STATUS.逾期 ? "已逾期" : undefined,
-      remindDays: card?.remindDays ?? defaultRemind,
     });
   }
 
@@ -174,7 +171,6 @@ export function computeDues(ctx: FinanceContext, today: string, horizonDays = 30
         amount: p.premium,
         daysLeft: left(d),
         detail: p.payMode === INS_PAY_MODE.自行繳 ? "自行繳" : `${p.payMode}自動入帳`,
-        remindDays: defaultRemind,
       });
     }
   }
@@ -191,7 +187,6 @@ export function computeDues(ctx: FinanceContext, today: string, horizonDays = 30
         title: `${l.name} 第 ${p.k}/${l.periods} 期`,
         amount: p.payment,
         daysLeft: left(p.due),
-        remindDays: defaultRemind,
       });
     }
   }
@@ -201,7 +196,7 @@ export function computeDues(ctx: FinanceContext, today: string, horizonDays = 30
     if (!r.active || r.type === TX_TYPE.收入) continue;
     for (const d of eachDay(today, to)) {
       if (!occursOn(r, d) || keys.has(`RULE-${r.code}-${d.replaceAll("-", "")}`)) continue;
-      dues.push({ date: d, kind: "定期", title: r.name, amount: r.amount, daysLeft: left(d), remindDays: r.remindDays });
+      dues.push({ date: d, kind: "定期", title: r.name, amount: r.amount, daysLeft: left(d) });
     }
   }
 
@@ -215,7 +210,6 @@ export function computeDues(ctx: FinanceContext, today: string, horizonDays = 30
       amount: t.amount,
       daysLeft: left(t.date),
       detail: t.type,
-      remindDays: 9999, // 預定明細一律提醒，直到你確認
     });
   }
 
