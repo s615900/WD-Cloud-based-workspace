@@ -14,6 +14,7 @@ const MAIN_ITEMS: NavItem[] = [
   { href: "/desktop", label: "首頁" },
   { href: "/desktop/calendar", label: "行事曆" },
   { href: "/desktop/tasks", label: "待辦事項" },
+  { href: "/desktop/finance", label: "財務" },
 ];
 // 下拉分類
 const DROP_GROUPS: { label: string; items: NavItem[] }[] = [

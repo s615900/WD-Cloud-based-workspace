@@ -52,6 +52,7 @@ import { getScheduleForDate, getFreeSlotsForDate } from "../modules/roster";
 import { getTodayYMD } from "./ragic";
 import { classifyTextWithAI, describeImageWithAI } from "./ai";
 import { AI_FEATURES_ENABLED } from "../lib/aiFeatures";
+import { handleFinanceText } from "../finance/line";
 
 import { addDefaultDuration } from "../modules/dates";
 
@@ -585,6 +586,13 @@ async function handleTextMessage(
         messages: [{ type: "text", text: "糟糕，剛剛存檔時發生問題，請稍後再試一次" }],
       });
     }
+    return;
+  }
+
+  // 個人財務指令（記／收／本月／待繳）：只有本人（LINE_USER_ID）會被攔截，其他人照舊走下面的流程
+  const financeReply = await handleFinanceText(userId, text);
+  if (financeReply) {
+    await client.replyMessage({ replyToken, messages: financeReply });
     return;
   }
 
