@@ -11,7 +11,7 @@ function whenText(daysLeft: number): string {
   return daysLeft < 0 ? `已逾 ${-daysLeft} 天` : daysLeft === 0 ? "今天" : `${daysLeft} 天後`;
 }
 
-// 總覽：本月收支、分類佔比、30 天內待付款、各卡未繳與額度使用率、貸款、保險、帳戶餘額
+// 總覽：本月收支、分類佔比、30 天內待付款、各卡未繳與剩餘額度、貸款、保險、帳戶餘額
 export function OverviewTab({ accounts, version }: { accounts: AccountWithBalance[]; version: number }) {
   const ov = useApi<FinanceOverview>("/api/finance/overview", version);
   const d = ov.data;
@@ -117,7 +117,7 @@ export function OverviewTab({ accounts, version }: { accounts: AccountWithBalanc
                 <span>💳 {c.name} 未繳</span>
                 <span className={s.mono}>
                   {money(c.unpaid)}
-                  {c.usage !== null ? <span className={s.sub}>　額度使用 {(c.usage * 100).toFixed(0)}%</span> : null}
+                  {c.usage !== null ? <span className={s.sub}>　{c.shared.length > 1 ? "共用" : ""}剩餘額度 {money(c.remaining)}</span> : null}
                 </span>
               </div>
               {c.usage !== null ? (

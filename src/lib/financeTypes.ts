@@ -225,8 +225,11 @@ export interface CardOverview {
   account: string;
   name: string;
   unpaid: number;
-  limit: number;
-  usage: number | null; // 額度使用率 0~1，沒設額度為 null
+  limit: number; // 機構共用額度
+  used: number; // 機構已占用（未繳＋分期剩餘）
+  remaining: number; // 機構剩餘額度
+  shared: string[]; // 同機構的卡名稱
+  usage: number | null; // 已占用比例 0~1，沒設額度為 null
 }
 
 export interface FinanceOverview {

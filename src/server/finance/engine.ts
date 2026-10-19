@@ -37,7 +37,8 @@ import {
 import { periodsPerYear, paymentDates } from "./insurance";
 import { buildSchedule, type LoanTerms } from "./loan";
 import { occursOn } from "./recurrence";
-import { ACCOUNT_TYPE, INS_PAY_MODE, INS_STATUS, LOAN_STATUS, STMT_STATUS, TX_STATUS, TX_TYPE } from "./ragicFields";
+import { cardLimits } from "./creditLimit";
+import { ACCOUNT_TYPE, INS_PAY_MODE, INST_STATUS, INS_STATUS, LOAN_STATUS, STMT_STATUS, TX_STATUS, TX_TYPE } from "./ragicFields";
 import { listAccounts, listCategories, listTransactions } from "./service";
 
 export interface FinanceContext {
@@ -246,11 +247,18 @@ export function buildOverview(ctx: FinanceContext, today: string): FinanceOvervi
   const accounts = withBalances(ctx);
   const { summary, expenseByCategory } = monthSummary(ctx.txs, month);
 
+  // 額度按機構共用：同一家機構的卡合併算（含進行中分期的剩餘金額）
+  const limits = cardLimits(
+    accounts.filter((a) => a.type === ACCOUNT_TYPE.信用卡 && a.active),
+    (code) => ctx.cards.find((c) => c.account === code)?.limit ?? 0,
+    ctx.installments,
+    INST_STATUS.進行中,
+  );
   const cards: CardOverview[] = accounts
     .filter((a) => a.type === ACCOUNT_TYPE.信用卡 && a.active)
     .map((a) => {
-      const limit = ctx.cards.find((c) => c.account === a.code)?.limit ?? 0;
-      return { account: a.code, name: a.name, unpaid: a.balance, limit, usage: limit > 0 ? a.balance / limit : null };
+      const l = limits.get(a.code)!;
+      return { account: a.code, name: a.name, unpaid: a.balance, limit: l.limit, used: l.used, remaining: l.remaining, shared: l.shared, usage: l.usage };
     });
 
   const loans = ctx.loans

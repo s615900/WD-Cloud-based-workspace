@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { sendJson } from "@/lib/client";
-import type { AccountWithBalance, CardSetting, StatementItem } from "@/lib/financeTypes";
-import { ACCOUNT_TYPE, DEBIT_MODE, STMT_STATUS } from "@/server/finance/ragicFields";
+import type { AccountWithBalance, CardSetting, InstallmentItem, StatementItem } from "@/lib/financeTypes";
+import { cardLimits } from "@/server/finance/creditLimit";
+import { ACCOUNT_TYPE, DEBIT_MODE, INST_STATUS, STMT_STATUS } from "@/server/finance/ragicFields";
 import s from "./finance.module.css";
 import { EntityForm, Msg, money, opts, useApi } from "./shared";
 
@@ -22,16 +23,25 @@ export function CardsTab({
 }) {
   const settings = useApi<CardSetting[]>("/api/finance/cards", version);
   const statements = useApi<StatementItem[]>("/api/finance/statements", version);
+  const installments = useApi<InstallmentItem[]>("/api/finance/installments", version);
   const [editCard, setEditCard] = useState<AccountWithBalance | null>(null);
   const [editStmt, setEditStmt] = useState<StatementItem | null>(null);
   const [payStmt, setPayStmt] = useState<StatementItem | null>(null);
 
   const cards = accounts.filter((a) => a.type === ACCOUNT_TYPE.信用卡 && a.active);
   const banks = accounts.filter((a) => a.active && a.type !== ACCOUNT_TYPE.信用卡);
+  // 額度按機構共用：同機構的卡合併算，並扣掉進行中分期的剩餘金額
+  const limits = cardLimits(
+    cards,
+    (code) => settings.data?.find((x) => x.account === code)?.limit ?? 0,
+    installments.data ?? [],
+    INST_STATUS.進行中,
+  );
   const nameOf = (code: string) => accounts.find((a) => a.code === code)?.name ?? code;
   const refresh = () => {
     settings.reload();
     statements.reload();
+    installments.reload();
     onChanged();
   };
 
@@ -42,7 +52,8 @@ export function CardsTab({
       ) : (
         cards.map((c) => {
           const set = settings.data?.find((x) => x.account === c.code);
-          const usage = set && set.limit > 0 ? c.balance / set.limit : null;
+          const lim = limits.get(c.code);
+          const usage = lim ? lim.usage : null;
           return (
             <div key={c.id} className={s.cardBox} data-testid={`card-${c.code}`}>
               <div className={s.cardHead}>
@@ -63,7 +74,7 @@ export function CardsTab({
                 <p className={s.inlineNote}>尚未設定結帳日／繳款截止日，系統不會產生帳單。</p>
               )}
               {usage !== null ? (
-                <div className={s.bar} title={`額度使用率 ${(usage * 100).toFixed(0)}%`}>
+                <div className={s.bar} title={`剩餘額度 ${money(lim!.remaining)}`}>
                   <div className={`${s.barFill} ${usage > 0.9 ? s.barBad : usage > 0.7 ? s.barWarn : ""}`} style={{ width: `${Math.min(100, Math.max(0, usage * 100))}%` }} />
                 </div>
               ) : null}
@@ -71,7 +82,7 @@ export function CardsTab({
                 <button className={`${s.btn} ${s.btnSm}`} onClick={() => setEditCard(c)}>
                   {set ? "編輯設定" : "設定結帳日"}
                 </button>
-                {usage !== null ? <span className={s.sub}>額度使用率 {(usage * 100).toFixed(0)}%</span> : null}
+                {usage !== null ? <span className={s.sub}>{lim!.shared.length > 1 ? `${lim!.institution}共用額度 ${money(lim!.limit)}・` : ""}剩餘額度 {money(lim!.remaining)}（含分期未到期）</span> : null}
               </div>
             </div>
           );
