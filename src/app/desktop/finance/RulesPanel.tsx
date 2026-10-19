@@ -5,7 +5,7 @@ import { apiFetch, errorText, sendJson } from "@/lib/client";
 import type { AccountWithBalance, CategoryItem, FinanceSettings, RuleItem, RunDailyResult, TxType } from "@/lib/financeTypes";
 import { RULE_FREQ, TX_TYPE } from "@/server/finance/ragicFields";
 import s from "./finance.module.css";
-import { EntityForm, Msg, money, opts, useApi } from "./shared";
+import { DeleteButton, EntityForm, Msg, money, opts, useApi } from "./shared";
 
 const WEEKDAYS = ["", "週一", "週二", "週三", "週四", "週五", "週六", "週日"];
 
@@ -133,10 +133,13 @@ export function RulesPanel({
                     <td>{describe(r)}</td>
                     <td>{r.autoPost ? "自動入帳" : "預定（需確認）"}</td>
                     <td>{r.active ? "啟用" : <span className={s.muted}>停用</span>}</td>
-                    <td className={s.right}>
-                      <button className={`${s.btn} ${s.btnSm}`} onClick={() => setEditing(r)}>
-                        編輯
-                      </button>
+                    <td>
+                      <div className={s.actions}>
+                        <button className={`${s.btn} ${s.btnSm}`} onClick={() => setEditing(r)}>
+                          編輯
+                        </button>
+                        <DeleteButton url={`/api/finance/rules/${r.id}`} onDeleted={rules.reload} />
+                      </div>
                     </td>
                   </tr>
                 ))

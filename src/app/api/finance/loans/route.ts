@@ -1,7 +1,7 @@
 import { json, readBody } from "@/server/http";
 import { createLoan, type LoanBody } from "@/server/finance/entities";
 import { buildLoanView, loadContext } from "@/server/finance/engine";
-import { handle } from "@/server/finance/route";
+import { handle, handleWrite } from "@/server/finance/route";
 import { todayYMD } from "@/server/modules/dates";
 
 // 貸款清單 + 攤還表 + 剩餘本金／已還期數（計算值，不寫回 Ragic）
@@ -14,5 +14,5 @@ export function GET() {
 }
 
 export function POST(req: Request) {
-  return handle("新增貸款", async () => json({ success: true, id: await createLoan(await readBody<LoanBody>(req)) }));
+  return handleWrite("新增貸款", async () => json({ success: true, id: await createLoan(await readBody<LoanBody>(req)) }));
 }

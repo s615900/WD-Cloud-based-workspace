@@ -107,8 +107,13 @@ export type CategoryKind = (typeof CATEGORY_KIND)[keyof typeof CATEGORY_KIND];
 
 // 「是／否」欄位：F1、F2 實測是下拉選單，GET 回「是」。同時接受勾選欄位的 "Yes"，
 // 萬一日後 Ragic 欄位改型態也不會判斷失靈。
+// 下拉選單型的「是／否」（例：F4 自動入帳）
 export const YES = "是";
 export const NO = "否";
+// 勾選欄位（Ragic checkbox）寫入值是 Yes／No：F1 預設記帳、啟用；F2 啟用；F4 啟用。
+// 讀取時 isYes() 同時接受「是」與「Yes」，所以早期用「是」寫入的資料仍然讀得到。
+export const CHECK_ON = "Yes";
+export const CHECK_OFF = "No";
 
 export function isYes(v: unknown): boolean {
   return v === YES || v === "Yes";

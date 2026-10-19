@@ -195,3 +195,45 @@ export function EntityForm({
 }
 
 export const opts = (values: readonly string[]) => values.map((v) => ({ value: v, label: v }));
+
+// 兩段式刪除：第一下變成「確定刪除／取消」，不使用瀏覽器的 confirm 對話框。
+// 後端會拒絕「已被使用」的項目，錯誤訊息直接顯示在按鈕旁。
+export function DeleteButton({ url, onDeleted, small = true }: { url: string; onDeleted: () => void; small?: boolean }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const size = small ? ` ${s.btnSm}` : "";
+
+  async function go() {
+    setBusy(true);
+    setErr("");
+    try {
+      await apiFetch(url, { method: "DELETE" });
+      onDeleted();
+    } catch (e) {
+      setErr(errorText(e, "刪除失敗"));
+      setAsking(false);
+    }
+    setBusy(false);
+  }
+
+  if (!asking)
+    return (
+      <>
+        <button className={`${s.btn}${size} ${s.btnDanger}`} onClick={() => setAsking(true)}>
+          刪除
+        </button>
+        {err ? <span className={`${s.sub} ${s.msgError}`}>{err}</span> : null}
+      </>
+    );
+  return (
+    <>
+      <button className={`${s.btn}${size} ${s.btnDanger}`} disabled={busy} onClick={go}>
+        確定刪除
+      </button>
+      <button className={`${s.btn}${size}`} onClick={() => setAsking(false)}>
+        取消
+      </button>
+    </>
+  );
+}

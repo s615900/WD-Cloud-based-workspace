@@ -1,6 +1,6 @@
 import type { TransactionList } from "@/lib/financeTypes";
 import { json, queryParam, readBody } from "@/server/http";
-import { handle } from "@/server/finance/route";
+import { handle, handleWrite } from "@/server/finance/route";
 import { createTransaction, listTransactions, type TransactionBody } from "@/server/finance/service";
 import { MONTH_RE } from "@/server/modules/dates";
 import { TX_STATUS, TX_TYPE } from "@/server/finance/ragicFields";
@@ -31,7 +31,7 @@ export function GET(req: Request) {
 }
 
 export function POST(req: Request) {
-  return handle("新增明細", async () => {
+  return handleWrite("新增明細", async () => {
     const { id, code } = await createTransaction(await readBody<TransactionBody>(req));
     return json({ success: true, id, code });
   });

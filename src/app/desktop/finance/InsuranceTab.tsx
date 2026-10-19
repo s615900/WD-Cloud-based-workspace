@@ -5,7 +5,7 @@ import { sendJson } from "@/lib/client";
 import type { AccountWithBalance, PolicyView } from "@/lib/financeTypes";
 import { INS_FREQ, INS_KIND, INS_PAY_MODE, INS_STATUS } from "@/server/finance/ragicFields";
 import s from "./finance.module.css";
-import { EntityForm, Msg, money, opts, useApi } from "./shared";
+import { DeleteButton, EntityForm, Msg, money, opts, useApi } from "./shared";
 
 export function InsuranceTab({
   accounts,
@@ -104,10 +104,19 @@ export function InsuranceTab({
                     {p.account ? <span className={s.sub}>・{nameOf(p.account)}</span> : null}
                   </td>
                   <td>{p.status}</td>
-                  <td className={s.right}>
-                    <button className={`${s.btn} ${s.btnSm}`} onClick={() => setEditing(p)}>
-                      編輯
-                    </button>
+                  <td>
+                    <div className={s.actions}>
+                      <button className={`${s.btn} ${s.btnSm}`} onClick={() => setEditing(p)}>
+                        編輯
+                      </button>
+                      <DeleteButton
+                        url={`/api/finance/insurance/${p.id}`}
+                        onDeleted={() => {
+                          list.reload();
+                          onChanged();
+                        }}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))

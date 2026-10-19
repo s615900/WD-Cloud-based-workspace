@@ -3,6 +3,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { runDaily } from "@/server/finance/daily";
+import { withFresh } from "@/server/finance/ragic";
 import { json } from "@/server/http";
 
 function isValidKey(provided: string | null): boolean {
@@ -17,7 +18,7 @@ function isValidKey(provided: string | null): boolean {
 async function handler(req: NextRequest) {
   if (!isValidKey(req.nextUrl.searchParams.get("key"))) return json({ error: "unauthorized" }, 401);
   try {
-    return json(await runDaily({ dryRun: req.nextUrl.searchParams.get("dryRun") === "1" }));
+    return json(await withFresh(() => runDaily({ dryRun: req.nextUrl.searchParams.get("dryRun") === "1" })));
   } catch (err) {
     console.error("財務每日引擎失敗:", err);
     return json({ error: "internal error" }, 500);

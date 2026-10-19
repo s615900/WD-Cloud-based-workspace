@@ -11,11 +11,11 @@ import {
   F1,
   F2,
   F3,
-  NO,
+  CHECK_OFF,
+  CHECK_ON,
   TX_SOURCE,
   TX_STATUS,
   TX_TYPE,
-  YES,
   type TxType,
 } from "./ragicFields";
 import { listAccounts, listCardClosingDays, listCategories, listTransactions, toTransaction } from "./repo";
@@ -67,7 +67,7 @@ export async function createCategory(body: CategoryBody): Promise<number> {
     [F2.收支別]: kind,
     [F2.顏色]: str(body.color),
     [F2.排序]: order,
-    [F2.啟用]: body.active === false ? NO : YES,
+    [F2.啟用]: body.active === false ? CHECK_OFF : CHECK_ON,
   });
 }
 
@@ -99,7 +99,7 @@ export async function updateCategory(recordId: string, body: CategoryBody): Prom
   }
   if (has(body, "color")) fields[F2.顏色] = str(body.color);
   if (has(body, "order")) fields[F2.排序] = parseOrder(body.order);
-  if (has(body, "active")) fields[F2.啟用] = body.active ? YES : NO;
+  if (has(body, "active")) fields[F2.啟用] = body.active ? CHECK_ON : CHECK_OFF;
 
   if (Object.keys(fields).length > 0) await finUpdate("F2_CATEGORY", recordId, fields);
 }
@@ -129,7 +129,7 @@ export async function seedCategories(dryRun: boolean): Promise<SeedResult> {
         [F2.分類名稱]: cat.name,
         [F2.收支別]: cat.kind,
         [F2.排序]: (i + 1) * 10,
-        [F2.啟用]: YES,
+        [F2.啟用]: CHECK_ON,
       });
     }
   }
@@ -174,7 +174,7 @@ export function parseDate(v: unknown, label: string): string {
 async function clearOtherDefaults(keepId: string): Promise<void> {
   const all = await listAccounts();
   for (const acc of all) {
-    if (acc.id !== keepId && acc.isDefault) await finUpdate("F1_ACCOUNT", acc.id, { [F1.預設記帳]: NO });
+    if (acc.id !== keepId && acc.isDefault) await finUpdate("F1_ACCOUNT", acc.id, { [F1.預設記帳]: CHECK_OFF });
   }
 }
 
@@ -201,8 +201,8 @@ export async function createAccount(body: AccountBody): Promise<number> {
     [F1.末四碼]: last4,
     [F1.期初餘額]: openingBalance,
     [F1.期初日期]: openingDate,
-    [F1.預設記帳]: body.isDefault ? YES : NO,
-    [F1.啟用]: body.active === false ? NO : YES,
+    [F1.預設記帳]: body.isDefault ? CHECK_ON : CHECK_OFF,
+    [F1.啟用]: body.active === false ? CHECK_OFF : CHECK_ON,
     [F1.排序]: order,
     [F1.備註]: str(body.note),
   });
@@ -231,8 +231,8 @@ export async function updateAccount(recordId: string, body: AccountBody): Promis
   if (has(body, "last4")) fields[F1.末四碼] = parseLast4(body.last4);
   if (has(body, "openingBalance")) fields[F1.期初餘額] = parseMoney(body.openingBalance, "期初餘額");
   if (has(body, "openingDate")) fields[F1.期初日期] = parseDate(body.openingDate, "期初日期");
-  if (has(body, "isDefault")) fields[F1.預設記帳] = body.isDefault ? YES : NO;
-  if (has(body, "active")) fields[F1.啟用] = body.active ? YES : NO;
+  if (has(body, "isDefault")) fields[F1.預設記帳] = body.isDefault ? CHECK_ON : CHECK_OFF;
+  if (has(body, "active")) fields[F1.啟用] = body.active ? CHECK_ON : CHECK_OFF;
   if (has(body, "order")) fields[F1.排序] = parseOrder(body.order);
   if (has(body, "note")) fields[F1.備註] = str(body.note);
 

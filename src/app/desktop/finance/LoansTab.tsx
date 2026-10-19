@@ -5,7 +5,7 @@ import { sendJson } from "@/lib/client";
 import type { AccountWithBalance, LoanView } from "@/lib/financeTypes";
 import { ACCOUNT_TYPE, LOAN_STATUS, LOAN_TYPE, RATE_TYPE, REPAY_MODE } from "@/server/finance/ragicFields";
 import s from "./finance.module.css";
-import { EntityForm, Msg, money, opts, useApi } from "./shared";
+import { DeleteButton, EntityForm, Msg, money, opts, useApi } from "./shared";
 
 // 年利率在畫面上用「百分比」輸入（2.85），送出前轉成小數 0.0285（Ragic 存小數，不存 "2.85%"）
 const pctToDecimal = (v: unknown) => Number((Number(String(v)) / 100).toFixed(6));
@@ -87,6 +87,13 @@ export function LoansTab({
               <button className={`${s.btn} ${s.btnSm}`} onClick={() => setRateFor(l)}>
                 新增利率異動
               </button>
+              <DeleteButton
+                url={`/api/finance/loans/${l.id}`}
+                onDeleted={() => {
+                  list.reload();
+                  onChanged();
+                }}
+              />
             </div>
             {l.rateChanges.length > 0 ? (
               <p className={s.sub}>利率異動：{l.rateChanges.map((r) => `${r.effective} 起 ${decimalToPct(r.rate)}%`).join("、")}</p>

@@ -35,6 +35,8 @@ import {
   INST_STATUS,
   LOAN_STATUS,
   LOAN_TYPE,
+  CHECK_OFF,
+  CHECK_ON,
   NO,
   RATE_TYPE,
   REMAINDER_MODE,
@@ -77,6 +79,7 @@ function requiredDate(v: unknown, label: string): string {
   return optionalDate(v, label);
 }
 const yn = (b: unknown) => (b ? YES : NO);
+const chk = (b: unknown) => (b ? CHECK_ON : CHECK_OFF);
 
 async function nextCode(sheet: "F4_RECURRING" | "F7_INSTALLMENT" | "F8_LOAN" | "F9_INSURANCE", field: number, prefix: string): Promise<string> {
   const rows = await finList(sheet);
@@ -207,7 +210,7 @@ function ruleFields(code: string | null, r: Omit<RuleItem, "id" | "code">): Writ
     [F4.開始日]: r.start,
     [F4.結束日]: r.end,
     [F4.自動入帳]: yn(r.autoPost),
-    [F4.啟用]: yn(r.active),
+    [F4.啟用]: chk(r.active),
   };
   if (code) f[F4.規則編號] = code;
   return f;

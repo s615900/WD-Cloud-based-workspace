@@ -6,7 +6,7 @@ import type { AccountItem, AccountType, AccountWithBalance, CategoryItem, Catego
 import { ACCOUNT_TYPE, CATEGORY_KIND } from "@/server/finance/ragicFields";
 import s from "./finance.module.css";
 import { RulesPanel } from "./RulesPanel";
-import { Field, FinModal, Msg, money } from "./shared";
+import { DeleteButton, Field, FinModal, Msg, money } from "./shared";
 
 export function SettingsTab({
   accounts,
@@ -68,10 +68,13 @@ export function SettingsTab({
                     <td className={s.right}>{money(a.openingBalance)}</td>
                     <td>{a.openingDate}</td>
                     <td>{a.active ? "啟用" : <span className={s.muted}>停用</span>}</td>
-                    <td className={s.right}>
-                      <button className={`${s.btn} ${s.btnSm}`} onClick={() => setEditAccount(a)}>
-                        編輯
-                      </button>
+                    <td>
+                      <div className={s.actions}>
+                        <button className={`${s.btn} ${s.btnSm}`} onClick={() => setEditAccount(a)}>
+                          編輯
+                        </button>
+                        <DeleteButton url={`/api/finance/accounts/${a.id}`} onDeleted={onChanged} />
+                      </div>
                     </td>
                   </tr>
                 ))

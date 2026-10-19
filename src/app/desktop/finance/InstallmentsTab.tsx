@@ -5,7 +5,7 @@ import { sendJson } from "@/lib/client";
 import type { AccountWithBalance, CategoryItem, InstallmentItem } from "@/lib/financeTypes";
 import { ACCOUNT_TYPE, CATEGORY_KIND, INST_STATUS, REMAINDER_MODE } from "@/server/finance/ragicFields";
 import s from "./finance.module.css";
-import { EntityForm, Msg, money, opts, useApi } from "./shared";
+import { DeleteButton, EntityForm, Msg, money, opts, useApi } from "./shared";
 
 export function InstallmentsTab({
   accounts,
@@ -89,10 +89,19 @@ export function InstallmentsTab({
                   <td>
                     <span className={`${s.pill} ${i.status === INST_STATUS.進行中 ? s.pillWarn : s.pillOk}`}>{i.status}</span>
                   </td>
-                  <td className={s.right}>
-                    <button className={`${s.btn} ${s.btnSm}`} onClick={() => setEditing(i)}>
-                      編輯
-                    </button>
+                  <td>
+                    <div className={s.actions}>
+                      <button className={`${s.btn} ${s.btnSm}`} onClick={() => setEditing(i)}>
+                        編輯
+                      </button>
+                      <DeleteButton
+                        url={`/api/finance/installments/${i.id}`}
+                        onDeleted={() => {
+                          list.reload();
+                          onChanged();
+                        }}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))
