@@ -21,9 +21,14 @@ function privateKey(): string {
   return `-----BEGIN ${m[1]}-----\n${body.match(/.{1,64}/g)?.join("\n") ?? ""}\n-----END ${m[1]}-----\n`;
 }
 
+// 貼環境變數常把頭尾的引號、空白一起貼進去
+function cleanEnv(name: string): string {
+  return (process.env[name] ?? "").trim().replace(/^["']|["']$/g, "").trim();
+}
+
 function makeAuth() {
   return new google.auth.JWT(
-    process.env["GOOGLE_CLIENT_EMAIL"],
+    cleanEnv("GOOGLE_CLIENT_EMAIL"),
     undefined,
     privateKey(),
     ["https://www.googleapis.com/auth/calendar"],
@@ -37,7 +42,7 @@ export function calendarConfigured(): boolean {
 }
 
 function calendarApi() {
-  const calendarId = process.env["GOOGLE_CALENDAR_ID"];
+  const calendarId = cleanEnv("GOOGLE_CALENDAR_ID");
   if (!calendarId) throw new Error("GOOGLE_CALENDAR_ID is not set");
   return { calendar: google.calendar({ version: "v3", auth: makeAuth() }), calendarId };
 }
