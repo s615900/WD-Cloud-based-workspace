@@ -6,7 +6,7 @@
 //  2. Google 修改的事件 → 更新行程（工作台修改會即時推到 Google，所以兩邊內容不同時以 Google 為準）
 //  3. Google 刪除的事件 → 行程標成「取消」（可恢復，不直接刪資料）
 //  4. 行程有、Google 沒有（建立當下 Google 失敗、或欄位建好前的舊行程）→ 補推到 Google
-// 只處理「今天起 180 天內」的事件；循環事件不匯入（避免一次灌進一大堆）。
+// 只處理「過去 7 天～未來 180 天」的事件；循環事件不匯入（避免一次灌進一大堆）。
 //
 // 測試用參數：?dryRun=1 只回傳會做什麼、不寫入。
 import { timingSafeEqual } from "node:crypto";
@@ -23,6 +23,7 @@ import {
 import { addDefaultDuration } from "@/server/modules/dates";
 import { errorMessage, json } from "@/server/http";
 
+const PAST_DAYS = 7;
 const WINDOW_DAYS = 180;
 // 單次最多處理幾筆寫入，避免第一次補漏時超過函式執行時間；沒做完的下一輪接著做
 const MAX_WRITES = 25;
@@ -61,14 +62,14 @@ export async function GET(req: NextRequest) {
   if (!gcalFieldConfigured()) return json({ error: "行程表的「Google事件ID」欄位尚未設定（見 docs/11）" }, 503);
 
   const dryRun = req.nextUrl.searchParams.get("dryRun") === "1";
-  const today = taipeiYmd(0);
+  const firstDay = taipeiYmd(-PAST_DAYS);
   const lastDay = taipeiYmd(WINDOW_DAYS);
   const log = { imported: [] as string[], linked: [] as string[], updated: [] as string[], cancelled: [] as string[], pushed: [] as string[] };
   let writes = 0;
   const budget = () => writes < MAX_WRITES;
 
   try {
-    const googleEvents = await listGoogleEvents(`${today}T00:00:00+08:00`, `${lastDay}T23:59:59+08:00`);
+    const googleEvents = await listGoogleEvents(`${firstDay}T00:00:00+08:00`, `${lastDay}T23:59:59+08:00`);
     const entries = (await listAllSchedule()).filter((e) => e.userId === userId && e.kind === "個人行程");
     const byGcalId = new Map(entries.filter((e) => e.gcalId).map((e) => [e.gcalId, e]));
     const seenGcalIds = new Set<string>();
@@ -133,7 +134,7 @@ export async function GET(req: NextRequest) {
 
     // 3)(4) 以行程為準：還在窗口內、這輪沒在 Google 列表裡出現的行程
     for (const e of entries) {
-      if (e.date < today || e.date > lastDay) continue;
+      if (e.date < firstDay || e.date > lastDay) continue;
       if (e.gcalId && seenGcalIds.has(e.gcalId)) continue;
       const label = `${e.date} ${e.start} ${e.title}`;
 
@@ -165,7 +166,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return json({ dryRun, window: { from: today, to: lastDay }, writes, truncated: writes >= MAX_WRITES, ...log });
+    return json({ dryRun, window: { from: firstDay, to: lastDay }, writes, truncated: writes >= MAX_WRITES, ...log });
   } catch (err) {
     console.error("Google日曆同步失敗:", err);
     // 診斷：帳號信箱不是機密，連同長度一起回傳，方便比對 Vercel 環境變數有沒有貼錯
