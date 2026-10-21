@@ -11,10 +11,14 @@ const TIME_ZONE = "Asia/Taipei";
 // 台北沒有日光節約時間，固定 +08:00
 const TAIPEI_OFFSET = "+08:00";
 
-// Vercel 貼環境變數時常把頭尾的引號一起貼進去，這裡先去掉再還原換行，否則會出現 DECODER routines::unsupported
+// 環境變數裡的私鑰格式五花八門（頭尾帶引號、換行變成字面 \n 或空格…），否則會出現
+// DECODER routines::unsupported。這裡只取 BEGIN/END 之間的內容，濾掉所有非 base64 字元後重新排成標準格式。
 function privateKey(): string {
-  const raw = (process.env["GOOGLE_PRIVATE_KEY"] ?? "").trim().replace(/^["']|["']$/g, "");
-  return raw.replace(/\\n/g, "\n");
+  const raw = process.env["GOOGLE_PRIVATE_KEY"] ?? "";
+  const m = raw.match(/-----BEGIN ([A-Z ]*PRIVATE KEY)-----([\s\S]*?)-----END \1-----/);
+  if (!m) return raw.replace(/\\n/g, "\n");
+  const body = (m[2] ?? "").replace(/\\n/g, "").replace(/[^A-Za-z0-9+/=]/g, "");
+  return `-----BEGIN ${m[1]}-----\n${body.match(/.{1,64}/g)?.join("\n") ?? ""}\n-----END ${m[1]}-----\n`;
 }
 
 function makeAuth() {
