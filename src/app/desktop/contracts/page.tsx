@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { ContractsView } from "./ContractsView";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "合約" };
-
+// 列表已併入接案商業總頁
 export default function ContractsPage() {
-  return <ContractsView />;
+  redirect("/desktop/business?tab=contracts");
 }

@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { ClientsView } from "./ClientsView";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "客戶資料" };
-
+// 列表已併入接案商業總頁
 export default function ClientsPage() {
-  return <ClientsView />;
+  redirect("/desktop/business?tab=clients");
 }

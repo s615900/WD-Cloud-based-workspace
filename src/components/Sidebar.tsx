@@ -6,8 +6,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-// external：外部網站書籤，另開新分頁
-type NavItem = { href: string; label: string; external?: boolean };
+// external：外部網站書籤，另開新分頁；also：這些路徑底下的頁面也算在這一項（例如報價單詳情頁）
+type NavItem = { href: string; label: string; external?: boolean; also?: string[] };
 
 // 上方列直接攤開的項目
 const MAIN_ITEMS: NavItem[] = [
@@ -15,6 +15,11 @@ const MAIN_ITEMS: NavItem[] = [
   { href: "/desktop/calendar", label: "行事曆" },
   { href: "/desktop/tasks", label: "待辦事項" },
   { href: "/desktop/finance", label: "財務" },
+  {
+    href: "/desktop/business",
+    label: "接案商業",
+    also: ["/desktop/clients", "/desktop/quotes", "/desktop/contracts", "/desktop/projects"],
+  },
 ];
 // 下拉分類
 const DROP_GROUPS: { label: string; items: NavItem[] }[] = [
@@ -35,15 +40,6 @@ const DROP_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "https://national-games-lyart.vercel.app/", label: "全台灣運動攝影師作品平台", external: true },
     ],
   },
-  {
-    label: "接案商業",
-    items: [
-      { href: "/desktop/clients", label: "客戶資料" },
-      { href: "/desktop/quotes", label: "報價單" },
-      { href: "/desktop/contracts", label: "合約" },
-      { href: "/desktop/projects", label: "專案進度" },
-    ],
-  },
 ];
 const SETTINGS: NavItem = { href: "/desktop/settings", label: "設定" };
 // 手機抽屜：分組標題＋項目
@@ -53,9 +49,9 @@ const DRAWER_GROUPS: { label: string; items: NavItem[] }[] = [
   { label: "系統", items: [SETTINGS] },
 ];
 
-function isActive(pathname: string, href: string): boolean {
+function isActive(pathname: string, href: string, also: string[] = []): boolean {
   if (href === "/desktop") return pathname === "/desktop";
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return [href, ...also].some((h) => pathname === h || pathname.startsWith(`${h}/`));
 }
 
 // 內部頁面用 Link；外部書籤用 <a> 另開分頁
@@ -89,7 +85,7 @@ export function Sidebar() {
       <nav className="sticky top-0 z-[60] flex items-center bg-navy px-6 py-2 text-white max-lg:hidden">
         <div className="flex items-center gap-1">
           {MAIN_ITEMS.map((item) => (
-            <Link key={item.href} href={item.href} className={topLink(isActive(pathname, item.href))}>
+            <Link key={item.href} href={item.href} className={topLink(isActive(pathname, item.href, item.also))}>
               {item.label}
             </Link>
           ))}
@@ -169,7 +165,7 @@ export function Sidebar() {
                 item={item}
                 onClick={() => setOpen(false)}
                 className={`mb-0.5 block rounded-lg px-2.5 py-[9px] text-sm no-underline ${
-                  !item.external && isActive(pathname, item.href) ? "bg-navy-2 font-bold text-white" : "text-white/85 hover:bg-white/8"
+                  !item.external && isActive(pathname, item.href, item.also) ? "bg-navy-2 font-bold text-white" : "text-white/85 hover:bg-white/8"
                 }`}
               />
             ))}

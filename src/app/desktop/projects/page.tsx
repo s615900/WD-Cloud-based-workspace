@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { ProjectsView } from "./ProjectsView";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "專案進度" };
-
+// 列表已併入接案商業總頁
 export default function ProjectsPage() {
-  return <ProjectsView />;
+  redirect("/desktop/business?tab=projects");
 }

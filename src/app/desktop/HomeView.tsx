@@ -190,7 +190,7 @@ export function HomeView() {
         {locks && !(locks.quotes && locks.contracts) && (
           <SummaryCard
             title="合約 / 報價"
-            href="/desktop/quotes"
+            href="/desktop/business?tab=quotes"
             linkLabel="查看全部"
             state={quotes.status === "ok" ? { status: "ok", data: merged } : quotes}
             empty="尚無報價或合約"

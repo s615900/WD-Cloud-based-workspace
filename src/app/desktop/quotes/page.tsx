@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { QuotesView } from "./QuotesView";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "報價單" };
-
+// 列表已併入接案商業總頁
 export default function QuotesPage() {
-  return <QuotesView />;
+  redirect("/desktop/business?tab=quotes");
 }
