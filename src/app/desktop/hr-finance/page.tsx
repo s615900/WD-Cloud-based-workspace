@@ -6,12 +6,12 @@ import { FinanceView } from "../finance/FinanceView";
 
 export const metadata: Metadata = { title: "人事財務表" };
 
-// 人事財務表總頁：預排班／人事假勤／財務放在同一頁用分頁切換，
+// 人事財務表總頁：預排班／財務／人事假勤放在同一頁用分頁切換，
 // 用 ?tab= 記住目前分頁（舊的 /desktop/plan、/hr、/finance 網址會導到這裡）。
 const TABS = [
   { key: "plan", label: "預排班", View: PlanView },
-  { key: "hr", label: "人事假勤", View: HrView },
   { key: "finance", label: "財務", View: FinanceView },
+  { key: "hr", label: "人事假勤", View: HrView },
 ] as const;
 
 export default async function HrFinancePage({ searchParams }: PageProps<"/desktop/hr-finance">) {
