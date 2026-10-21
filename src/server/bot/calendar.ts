@@ -11,11 +11,17 @@ const TIME_ZONE = "Asia/Taipei";
 // 台北沒有日光節約時間，固定 +08:00
 const TAIPEI_OFFSET = "+08:00";
 
+// Vercel 貼環境變數時常把頭尾的引號一起貼進去，這裡先去掉再還原換行，否則會出現 DECODER routines::unsupported
+function privateKey(): string {
+  const raw = (process.env["GOOGLE_PRIVATE_KEY"] ?? "").trim().replace(/^["']|["']$/g, "");
+  return raw.replace(/\\n/g, "\n");
+}
+
 function makeAuth() {
   return new google.auth.JWT(
     process.env["GOOGLE_CLIENT_EMAIL"],
     undefined,
-    (process.env["GOOGLE_PRIVATE_KEY"] ?? "").replace(/\\n/g, "\n"),
+    privateKey(),
     ["https://www.googleapis.com/auth/calendar"],
   );
 }
