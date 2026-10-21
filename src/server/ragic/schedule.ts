@@ -9,8 +9,9 @@
 // 「客戶預約」是 W-006 v2 新增的第三個類型值，對應客戶經 book.html 送出、WD 在 LINE
 // 上確認過的預約（見 bot/ragic.ts 的 confirmBookingInRagic）。WD 需先在 Ragic 後台把
 // 這個值加進本欄位的下拉選項，程式端才寫得進去。
-import { ragicList, ragicCreate, ragicUpdate, ragicDelete, type RagicRecordData } from "./client";
-import { F_SCHEDULE } from "./fields";
+import { ragicList, ragicGetOne, ragicCreate, ragicUpdate, ragicDelete, type RagicRecordData } from "./client";
+import { F_SCHEDULE, SCHEDULE_GCAL_FIELD_ID } from "./fields";
+import { calendarConfigured, createGoogleEvent, updateGoogleEvent, deleteGoogleEvent } from "../bot/calendar";
 
 export type ScheduleKind = "班別" | "個人行程" | "客戶預約";
 // 完成：待辦事項頁把個人行程標成已完成用（仍佔用時段，只有「取消」才會釋出空檔）
@@ -32,6 +33,12 @@ export interface ScheduleEntry {
   color: string;
   location: string;
   note: string;
+  gcalId: string; // 對應的 Google 日曆事件 ID（欄位尚未設定或尚未同步時為空字串）
+}
+
+// 「Google事件ID」欄位是否已在 Ragic 建好並填進 fields.ts
+export function gcalFieldConfigured(): boolean {
+  return SCHEDULE_GCAL_FIELD_ID !== "";
 }
 
 // 「日期」（1001420）實測是 Ragic 原生日期型別欄位，不是純文字欄位：POST 送
@@ -65,6 +72,7 @@ function toScheduleEntry(id: string, r: RagicRecordData): ScheduleEntry {
     color: String(r["班別顏色"] ?? ""),
     location: String(r["地點"] ?? ""),
     note: String(r["備註"] ?? ""),
+    gcalId: String(r["Google事件ID"] ?? ""),
   };
 }
 
@@ -97,6 +105,12 @@ export interface CreateScheduleInput {
   location?: string;
   note?: string;
   code?: string;
+  gcalId?: string;
+}
+
+// 寫入選項：skipGoogle = 這次寫入本身就是從 Google 同步過來的，不要再回寫 Google（避免來回觸發）
+export interface WriteOptions {
+  skipGoogle?: boolean;
 }
 
 function buildScheduleFields(input: CreateScheduleInput): Record<string, string> {
@@ -115,11 +129,55 @@ function buildScheduleFields(input: CreateScheduleInput): Record<string, string>
     [String(F_SCHEDULE.color)]: input.color ?? "",
     [String(F_SCHEDULE.location)]: input.location ?? "",
     [String(F_SCHEDULE.note)]: input.note ?? "",
+    ...(gcalFieldConfigured() && input.gcalId ? { [SCHEDULE_GCAL_FIELD_ID]: input.gcalId } : {}),
   };
 }
 
-export async function createSchedule(input: CreateScheduleInput): Promise<number> {
-  return ragicCreate("schedule", buildScheduleFields(input));
+// 只有「個人行程」會同步到 Google 日曆（班別、客戶預約不同步）。
+// Google 同步失敗只記錄、不影響 Ragic 已寫入的行程；下次排程同步（/api/cron/google-sync）會補上。
+function syncsToGoogle(kind: ScheduleKind): boolean {
+  return kind === "個人行程" && calendarConfigured();
+}
+
+function toCalendarItem(e: ScheduleEntry) {
+  return { date: e.date, start: e.start, end: e.end, title: e.title, allDay: e.allDay, location: e.location };
+}
+
+// 把一筆行程的目前狀態推到 Google：取消 → 刪事件；其他 → 更新（沒有或已不存在就新增）。
+// 新增出來的事件 ID 會寫回 Ragic。
+export async function pushEntryToGoogle(entry: ScheduleEntry): Promise<void> {
+  if (!syncsToGoogle(entry.kind)) return;
+  if (entry.status === "取消") {
+    if (entry.gcalId) await deleteGoogleEvent(entry.gcalId);
+    return;
+  }
+  if (entry.gcalId && (await updateGoogleEvent(entry.gcalId, toCalendarItem(entry)))) return;
+  const gcalId = await createGoogleEvent(toCalendarItem(entry));
+  if (gcalFieldConfigured()) {
+    await ragicUpdate("schedule", entry.id, { [SCHEDULE_GCAL_FIELD_ID]: gcalId });
+  }
+}
+
+export async function createSchedule(input: CreateScheduleInput, opts: WriteOptions = {}): Promise<number> {
+  const id = await ragicCreate("schedule", buildScheduleFields(input));
+  if (!opts.skipGoogle && !input.gcalId && input.status !== "取消" && syncsToGoogle(input.kind)) {
+    try {
+      const gcalId = await createGoogleEvent({
+        date: input.date,
+        start: input.start,
+        end: input.end,
+        title: input.title,
+        allDay: input.allDay ?? false,
+        location: input.location ?? "",
+      });
+      if (gcalFieldConfigured()) {
+        await ragicUpdate("schedule", id, { [SCHEDULE_GCAL_FIELD_ID]: gcalId });
+      }
+    } catch (err) {
+      console.error("建立Google日曆事件失敗:", err);
+    }
+  }
+  return id;
 }
 
 const UPDATABLE_FIELDS = {
@@ -150,21 +208,52 @@ export interface UpdateScheduleInput {
   color?: string;
   location?: string;
   note?: string;
+  gcalId?: string;
 }
 
-export async function updateSchedule(id: number | string, input: UpdateScheduleInput): Promise<void> {
+// 這些欄位有變動才需要同步到 Google（完成／備註之類的變動不影響日曆事件）
+const GOOGLE_RELEVANT_KEYS: (keyof UpdateScheduleInput)[] = ["kind", "date", "start", "end", "title", "allDay", "status", "location"];
+
+export async function updateSchedule(
+  id: number | string,
+  input: UpdateScheduleInput,
+  opts: WriteOptions = {},
+): Promise<void> {
   const fields: Record<string, string> = {};
   for (const [key, fieldId] of Object.entries(UPDATABLE_FIELDS) as [keyof UpdateScheduleInput, number][]) {
     const value = input[key];
     if (value === undefined) continue;
     fields[String(fieldId)] = typeof value === "boolean" ? (value ? "是" : "否") : String(value);
   }
+  if (gcalFieldConfigured() && input.gcalId !== undefined) fields[SCHEDULE_GCAL_FIELD_ID] = input.gcalId;
   if (Object.keys(fields).length === 0) return;
   await ragicUpdate("schedule", id, fields);
+
+  if (opts.skipGoogle || !calendarConfigured() || !GOOGLE_RELEVANT_KEYS.some((k) => input[k] !== undefined)) return;
+  try {
+    // 讀回整筆最新內容再推（呼叫端可能只傳了變動的欄位）
+    await pushEntryToGoogle(toScheduleEntry(String(id), await ragicGetOne("schedule", id)));
+  } catch (err) {
+    console.error("同步Google日曆事件失敗:", err);
+  }
 }
 
-export async function deleteSchedule(id: number | string): Promise<void> {
+export async function deleteSchedule(id: number | string, opts: WriteOptions = {}): Promise<void> {
+  let gcalId = "";
+  if (!opts.skipGoogle && calendarConfigured() && gcalFieldConfigured()) {
+    try {
+      gcalId = toScheduleEntry(String(id), await ragicGetOne("schedule", id)).gcalId;
+    } catch (err) {
+      console.error("讀取行程的Google事件ID失敗:", err);
+    }
+  }
   await ragicDelete("schedule", id);
+  if (!gcalId) return;
+  try {
+    await deleteGoogleEvent(gcalId);
+  } catch (err) {
+    console.error("刪除Google日曆事件失敗:", err);
+  }
 }
 
 // 整組刪除（排班群組）：先讀回整張表找出同一個 batchId 的所有筆數，逐筆刪除。

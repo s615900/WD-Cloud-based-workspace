@@ -60,6 +60,10 @@ export const F_SCHEDULE = {
   note: 1001431,
 } as const;
 
+// 行程表的「Google事件ID」欄位編號（雙向同步用，見 docs/11）。Ragic 建好欄位後把編號填在這裡，
+// 填之前行程只會單向寫進 Google，不會回頭同步。
+export const SCHEDULE_GCAL_FIELD_ID: string = "1001629";
+
 // 空檔預約（/ragicforms21/9）。1001432 是 Ragic 自動編號欄位，絕不可寫入。
 export const F_FREESLOT = {
   id: 1001432,

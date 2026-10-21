@@ -2,7 +2,6 @@
 import type { NextRequest } from "next/server";
 import { queryTasksForApi, saveRecordToRagic } from "@/server/bot/ragic";
 import { createSchedule } from "@/server/ragic/schedule";
-import { addEventToCalendar } from "@/server/bot/calendar";
 import { isValidTaskType } from "@/server/modules/tasks";
 import { addDefaultDuration, DATE_RE } from "@/server/modules/dates";
 import { errorMessage, json, readBody } from "@/server/http";
@@ -76,11 +75,6 @@ export async function POST(req: Request) {
         title,
         status: "正常",
       });
-      try {
-        await addEventToCalendar(`${body.date} ${body.time} ${title}`);
-      } catch (calErr) {
-        console.error("建立Google日曆事件失敗:", calErr);
-      }
       return json({ success: true });
     } catch (err) {
       console.error("新增行程存檔失敗:", err);

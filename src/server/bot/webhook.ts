@@ -46,7 +46,6 @@ import {
   buildMemoConfirmFlex,
   buildFreeSlotListFlex,
 } from "./flexCards";
-import { addEventToCalendar } from "./calendar";
 import { formatDayLabel } from "../modules/dayLabel";
 import { getScheduleForDate, getFreeSlotsForDate } from "../modules/roster";
 import { getTodayYMD } from "./ragic";
@@ -110,17 +109,6 @@ function takePendingTripDate(userId: string): { datetime: string } | "expired" |
   return { datetime: state.datetime };
 }
 
-// 把 datetimepicker 回傳的 ISO 8601（例如 2026-07-30T14:00，沒有時區資訊，
-// 就是使用者選的當地時間數字）轉成「M/D HH:mm」文字，直接照字面數字轉換，不透過 Date
-// 物件計算，避免牽扯到時區換算。只給 addEventToCalendar（Google 日曆同步，維持它原本
-// 期待的文字格式）用，不用來寫進 Ragic——寫 /ragicforms21/8 一律用下面拆出的結構化欄位。
-function formatTripDateTime(isoDatetime: string): string {
-  const match = isoDatetime.match(/^\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-  if (!match) return isoDatetime;
-  const [, month, day, hour, minute] = match;
-  return `${Number(month)}/${Number(day)} ${hour}:${minute}`;
-}
-
 // 把 datetimepicker 回傳的 ISO 8601 拆成 /ragicforms21/8 需要的結構化 date（yyyy-MM-dd）
 // 與 start（HH:mm），照字面數字轉換，不透過 Date 物件計算。解析不出來回傳 null。
 function parseTripDateTime(isoDatetime: string): { date: string; start: string } | null {
@@ -157,7 +145,7 @@ function takePendingFreeSlotStart(
 
 // 把 datetimepicker（mode=datetime）回傳的 ISO 8601（例如 2026-07-30T14:00）拆成
 // saveFreeSlotToRagic 需要的 date（YYYY-MM-DD）與 start（HH:MM），直接照字面數字轉換，
-// 不透過 Date 物件計算，避免牽扯到時區換算（作法比照 formatTripDateTime）。
+// 不透過 Date 物件計算，避免牽扯到時區換算。
 function parseFreeSlotStartDateTime(isoDatetime: string): { date: string; start: string } | null {
   const match = isoDatetime.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
   if (!match) return null;
@@ -569,11 +557,6 @@ async function handleTextMessage(
         title,
         status: "正常",
       });
-      try {
-        await addEventToCalendar(`${formatTripDateTime(pendingTripDate.datetime)} ${title}`);
-      } catch (calErr) {
-        console.error("建立Google日曆事件失敗:", calErr);
-      }
       await client.replyMessage({
         replyToken,
         messages: [{ type: "text", text: "已新增行程" }],
@@ -782,11 +765,6 @@ async function handleTextMessage(
         title: parsed.title,
         status: "正常",
       });
-      try {
-        await addEventToCalendar(record.content);
-      } catch (calErr) {
-        console.error("建立Google日曆事件失敗:", calErr);
-      }
       await client.replyMessage({
         replyToken,
         messages: [buildConfirmationFlex(record)],
