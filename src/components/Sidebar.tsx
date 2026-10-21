@@ -14,12 +14,13 @@ const MAIN_ITEMS: NavItem[] = [
   { href: "/desktop", label: "首頁" },
   { href: "/desktop/calendar", label: "行事曆" },
   { href: "/desktop/tasks", label: "待辦事項" },
-  {
-    href: "/desktop/business",
-    label: "接案商業",
-    also: ["/desktop/clients", "/desktop/quotes", "/desktop/contracts", "/desktop/projects"],
-  },
 ];
+// 排在下拉分類之後的單一按鈕
+const BUSINESS: NavItem = {
+  href: "/desktop/business",
+  label: "接案商業",
+  also: ["/desktop/clients", "/desktop/quotes", "/desktop/contracts", "/desktop/projects"],
+};
 // 下拉分類
 const DROP_GROUPS: { label: string; items: NavItem[] }[] = [
   {
@@ -46,6 +47,7 @@ const SETTINGS: NavItem = { href: "/desktop/settings", label: "設定" };
 const DRAWER_GROUPS: { label: string; items: NavItem[] }[] = [
   { label: "總覽", items: MAIN_ITEMS },
   ...DROP_GROUPS,
+  { label: "接案", items: [BUSINESS] },
   { label: "系統", items: [SETTINGS] },
 ];
 
@@ -122,6 +124,9 @@ export function Sidebar() {
               </div>
             );
           })}
+          <Link href={BUSINESS.href} className={topLink(isActive(pathname, BUSINESS.href, BUSINESS.also))}>
+            {BUSINESS.label}
+          </Link>
           <Link href={SETTINGS.href} className={topLink(isActive(pathname, SETTINGS.href))}>
             {SETTINGS.label}
           </Link>
