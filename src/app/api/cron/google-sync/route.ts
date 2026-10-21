@@ -169,8 +169,6 @@ export async function GET(req: NextRequest) {
     return json({ dryRun, window: { from: firstDay, to: lastDay }, writes, truncated: writes >= MAX_WRITES, ...log });
   } catch (err) {
     console.error("Google日曆同步失敗:", err);
-    // 診斷：帳號信箱不是機密，連同長度一起回傳，方便比對 Vercel 環境變數有沒有貼錯
-    const email = process.env["GOOGLE_CLIENT_EMAIL"] ?? "";
-    return json({ error: errorMessage(err, "internal error"), diag: { email: JSON.stringify(email), emailLength: email.length } }, 500);
+    return json({ error: errorMessage(err, "internal error") }, 500);
   }
 }
