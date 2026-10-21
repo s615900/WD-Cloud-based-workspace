@@ -94,18 +94,6 @@ export function DayPanel({ date, version, onChanged }: { date: string; version: 
                 </button>
                 <button
                   type="button"
-                  className="btn btn-outline px-2.5 py-1 text-xs"
-                  onClick={() =>
-                    act(
-                      () => sendJson(`/api/roster/schedule/${e.id}`, "PATCH", { status: e.status === "取消" ? "正常" : "取消" }),
-                      "更新失敗",
-                    )
-                  }
-                >
-                  {e.status === "取消" ? "恢復" : "取消"}
-                </button>
-                <button
-                  type="button"
                   className="btn btn-danger px-2.5 py-1 text-xs"
                   onClick={() => {
                     if (!confirm("確定刪除這筆行程？")) return;
