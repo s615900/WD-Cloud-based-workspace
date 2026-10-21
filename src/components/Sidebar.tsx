@@ -24,7 +24,7 @@ const MAIN_ITEMS: NavItem[] = [
 // 下拉分類
 const DROP_GROUPS: { label: string; items: NavItem[] }[] = [
   {
-    label: "人事",
+    label: "班表",
     items: [
       { href: "/desktop/plan", label: "預排班" },
       { href: "/desktop/hr", label: "人事假勤" },
