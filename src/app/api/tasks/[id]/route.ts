@@ -6,7 +6,7 @@ import { errorMessage, json, readBody } from "@/server/http";
 
 export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) {
   const { id } = await ctx.params;
-  const body = await readBody<{ status?: unknown; source?: unknown; dueDate?: unknown }>(req);
+  const body = await readBody<{ status?: unknown; source?: unknown; dueDate?: unknown; content?: unknown }>(req);
 
   // 桌面版待辦頁把 /ragicforms21/1（待辦）跟 /ragicforms21/8（排班行程）兩張表的紀錄混在
   // 同一個清單顯示，紀錄編號互不相干、會撞號。呼叫端一定要明確帶 source，
@@ -15,9 +15,12 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) 
     return json({ success: false, error: "source 必須是 todo 或 schedule" }, 400);
   }
 
-  // 狀態與到期日至少要改一個
-  if (body.status === undefined && body.dueDate === undefined) {
-    return json({ success: false, error: "請提供 status 或 dueDate" }, 400);
+  // 狀態、到期日、內容至少要改一個
+  if (body.status === undefined && body.dueDate === undefined && body.content === undefined) {
+    return json({ success: false, error: "請提供 status、dueDate 或 content" }, 400);
+  }
+  if (body.content !== undefined && (typeof body.content !== "string" || !body.content.trim())) {
+    return json({ success: false, error: "content 不可為空" }, 400);
   }
   if (body.status !== undefined && (typeof body.status !== "string" || !(VALID_TASK_STATUSES as readonly string[]).includes(body.status))) {
     return json({ success: false, error: "status 必須是 準備中 或 完成" }, 400);
@@ -39,8 +42,8 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) 
 
   // 行程（/8）：只能改狀態（完成／準備中），其他欄位請到行事曆改
   if (body.source === "schedule") {
-    if (body.status === undefined || body.dueDate !== undefined) {
-      return json({ success: false, error: "行程只能更改狀態，其他請至行事曆頁面修改" }, 400);
+    if (body.status === undefined || body.dueDate !== undefined || body.content !== undefined) {
+      return json({ success: false, error: "行程只能在這裡更改狀態，標題與時間請用行程的編輯功能" }, 400);
     }
     try {
       const entry = (await listAllSchedule()).find((e) => String(e.id) === id && e.userId === userId && e.kind === "個人行程");
@@ -68,6 +71,7 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) 
       {
         ...(typeof body.status === "string" ? { status: body.status } : {}),
         ...(typeof body.dueDate === "string" ? { dueDate: body.dueDate } : {}),
+        ...(typeof body.content === "string" ? { content: body.content.trim() } : {}),
       },
       record["截止日期"]?.trim() ?? "",
     );

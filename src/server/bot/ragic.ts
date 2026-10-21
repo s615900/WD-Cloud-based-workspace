@@ -197,6 +197,8 @@ export function scheduleEntryToTaskListItem(e: ScheduleEntry): TaskListItem {
     source: "schedule",
     sheetId: "/ragicforms21/8",
     recordId: e.id,
+    isoDate: e.date,
+    endTime: e.allDay ? "" : e.end,
   };
 }
 
@@ -312,6 +314,9 @@ export interface TaskListItem {
   recordId: number;
   // 待辦的到期日（yyyy-MM-dd）；行程與沒設定的待辦是 null
   dueDate?: string | null;
+  // 行程專用：完整日期（yyyy-MM-dd）與結束時間（HH:mm），編輯彈窗要用
+  isoDate?: string;
+  endTime?: string;
 }
 
 // 把單筆 /ragicforms21/1 紀錄（備忘，或圖片等其他非行程非空檔的殘留類型）轉成
@@ -399,13 +404,13 @@ export async function queryTasksForApi(opts: {
   return items.sort((a, b) => taskSortTimestamp(b) - taskSortTimestamp(a));
 }
 
-// 更新單筆待辦（/ragicforms21/1）：狀態、到期日可以只改其中一個。
+// 更新單筆待辦（/ragicforms21/1）：狀態、到期日、內容可以只改其中一個。
 // dueDate："yyyy-MM-dd" 設定到期日，"" 清除；existingDeadline 是這筆目前的「截止日期」（yyyy/MM/dd），
 // 設定到期日時一併把截止日期延到不早於到期日，避免待辦在到期日前就被隱藏規則擋掉。
 // Ragic 更新單筆紀錄的網址規則：在原本的表單網址後面加上 /<紀錄編號>
 export async function updateTaskInRagic(
   ragicId: number | string,
-  changes: { status?: string; dueDate?: string },
+  changes: { status?: string; dueDate?: string; content?: string },
   existingDeadline = "",
 ): Promise<unknown> {
   const base = getEnv("RAGIC_BASE_URL");
@@ -414,6 +419,7 @@ export async function updateTaskInRagic(
 
   const body = new URLSearchParams();
   if (changes.status !== undefined) body.set(FIELD_ID.狀態, changes.status);
+  if (changes.content !== undefined) body.set(FIELD_ID.內容文字, changes.content);
   if (changes.dueDate !== undefined) {
     body.set(FIELD_ID.到期日, changes.dueDate ? toSlash(changes.dueDate) : "");
     if (changes.dueDate && existingDeadline) {

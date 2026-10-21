@@ -140,6 +140,9 @@ export interface TaskListItem {
   source?: "todo" | "schedule";
   // 待辦的到期日（yyyy-MM-dd），沒設定是 null；只有待辦（source: "todo"）會有
   dueDate?: string | null;
+  // 行程專用：完整日期（yyyy-MM-dd）與結束時間（HH:mm）
+  isoDate?: string;
+  endTime?: string;
 }
 
 export interface ScheduleItem {

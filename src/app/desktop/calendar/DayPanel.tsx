@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Message, type MessageState } from "@/components/ui";
 import { apiFetch, errorText, sendJson, weekdayOf, WEEKDAYS } from "@/lib/client";
 import type { FreeSlot, RosterEntry } from "@/lib/types";
+import { EditEntryForm } from "./EditEntryForm";
 
 function toMinutes(hm: string): number {
   const [h, m] = (hm || "00:00").split(":").map(Number);
@@ -26,6 +27,7 @@ type PanelState =
 
 export function DayPanel({ date, version, onChanged }: { date: string; version: number; onChanged: () => void }) {
   const [state, setState] = useState<PanelState>({ status: "loading" });
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -67,7 +69,19 @@ export function DayPanel({ date, version, onChanged }: { date: string; version: 
         {state.entries.length === 0 ? (
           <p className="empty-hint">這天沒有行程</p>
         ) : (
-          state.entries.map((e) => (
+          state.entries.map((e) =>
+            editingId === e.id ? (
+              <div key={e.id} className="mb-2 rounded-[9px] border border-line px-2.5 py-2">
+                <EditEntryForm
+                  entry={{ id: e.id, title: e.title, date: e.date, start: e.start, end: e.end, allDay: e.allDay }}
+                  onCancel={() => setEditingId(null)}
+                  onSaved={() => {
+                    setEditingId(null);
+                    onChanged();
+                  }}
+                />
+              </div>
+            ) : (
             <div key={e.id} className="mb-2 rounded-[9px] border border-line px-2.5 py-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[13px] font-bold">{e.title}</span>
@@ -75,6 +89,9 @@ export function DayPanel({ date, version, onChanged }: { date: string; version: 
               </div>
               <div className="text-xs text-muted">{e.allDay ? "全天" : `${e.start} – ${e.end}`}</div>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
+                <button type="button" className="btn btn-outline px-2.5 py-1 text-xs" onClick={() => setEditingId(e.id)}>
+                  編輯
+                </button>
                 <button
                   type="button"
                   className="btn btn-outline px-2.5 py-1 text-xs"
@@ -99,7 +116,8 @@ export function DayPanel({ date, version, onChanged }: { date: string; version: 
                 </button>
               </div>
             </div>
-          ))
+            ),
+          )
         )}
 
         <p className="section-label">空檔（依目前緩衝／最短空檔規則推算）</p>

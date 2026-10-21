@@ -6,6 +6,7 @@ import { EmptyRow, Message, Modal, ModalActions, PageHeader, type MessageState }
 import { apiFetch, errorText, sendJson } from "@/lib/client";
 import { useHideDone } from "@/lib/taskPrefs";
 import type { TaskListItem } from "@/lib/types";
+import { EditEntryForm } from "../calendar/EditEntryForm";
 
 // 「備忘」是內部沿用的類型值，顯示給使用者看的文字一律用「待辦」
 const labelForType = (type: string) => (type === "備忘" ? "待辦" : type);
@@ -52,8 +53,7 @@ export function TasksView() {
     }
   }
 
-  // 排班行程（/ragicforms21/8）在這頁唯讀，點「檢視」直接導去行事曆對應日期；
-  // 只有待辦（/ragicforms21/1）才會開編輯彈窗。
+  // 行程（/ragicforms21/8）與待辦（/ragicforms21/1）都開各自的編輯彈窗。
   // 推播通知帶 ?id=123&src=todo|schedule：資料載入後自動開啟那一筆（只開一次）
   const deepLinkDone = useRef(false);
   useEffect(() => {
@@ -66,17 +66,9 @@ export function TasksView() {
     const hit = rows.tasks.find((t) => t.id === id && (t.source ?? "todo") === src);
     // 找不到（已刪除或已完成而被篩掉）就維持原本的清單畫面
     if (hit) openItem(hit);
-    // openItem 只用到 router／setEditing，不需要列為依賴
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows]);
 
   function openItem(t: TaskListItem) {
-    if (t.source === "schedule") {
-      // createdAt 對排班行程來說就是「yyyy/mm/dd HH:mm:00」，取前 10 碼即可
-      const iso = (t.createdAt || "").slice(0, 10).replaceAll("/", "-");
-      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) router.push(`/desktop/calendar?date=${iso}`);
-      return;
-    }
     setEditing(t);
   }
 
@@ -202,7 +194,7 @@ export function TasksView() {
                   <td className="whitespace-nowrap">
                     <DoneButton task={t} onToggle={toggleDone} />{" "}
                     <button type="button" className="btn btn-outline btn-sm">
-                      {t.source === "schedule" ? "檢視" : "編輯"}
+                      編輯
                     </button>
                   </td>
                 </tr>
@@ -212,7 +204,18 @@ export function TasksView() {
         </table>
       </div>
 
-      {editing && (
+      {editing?.source === "schedule" && (
+        <EditScheduleModal
+          task={editing}
+          onClose={() => setEditing(null)}
+          onViewInCalendar={(iso) => router.push(`/desktop/calendar?date=${iso}`)}
+          onSaved={() => {
+            setEditing(null);
+            setReloadCount((n) => n + 1);
+          }}
+        />
+      )}
+      {editing && editing.source !== "schedule" && (
         <EditTaskModal
           task={editing}
           onClose={() => setEditing(null)}
@@ -246,18 +249,29 @@ function DoneButton({ task, onToggle, className = "" }: { task: TaskListItem; on
 
 function EditTaskModal({ task, onClose, onSaved }: { task: TaskListItem; onClose: () => void; onSaved: () => void }) {
   const [status, setStatus] = useState(task.status === "完成" ? "完成" : "準備中");
+  const [content, setContent] = useState(task.content);
   const [dueDate, setDueDate] = useState(task.dueDate ?? "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<MessageState>({ text: "" });
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    if (!content.trim()) {
+      setMessage({ text: "內容不可為空", kind: "error" });
+      return;
+    }
     setSaving(true);
     setMessage({ text: "儲存中…" });
     try {
       // 到期日沒改就不送，避免 Ragic 還沒建「到期日」欄位時連狀態都存不了
       const dueChanged = dueDate !== (task.dueDate ?? "");
-      await sendJson(`/api/tasks/${task.id}`, "PATCH", { status, source: "todo", ...(dueChanged ? { dueDate } : {}) });
+      const contentChanged = content.trim() !== task.content;
+      await sendJson(`/api/tasks/${task.id}`, "PATCH", {
+        status,
+        source: "todo",
+        ...(contentChanged ? { content: content.trim() } : {}),
+        ...(dueChanged ? { dueDate } : {}),
+      });
       onSaved();
     } catch (err) {
       setMessage({ text: errorText(err, "儲存失敗"), kind: "error" });
@@ -278,8 +292,8 @@ function EditTaskModal({ task, onClose, onSaved }: { task: TaskListItem; onClose
             <p>{task.createdAt}</p>
           </div>
           <div className="form-field sm:col-span-2">
-            <label>內容</label>
-            <p className="whitespace-pre-wrap">{task.content}</p>
+            <label htmlFor="task-content">內容</label>
+            <textarea id="task-content" className="input" rows={3} value={content} onChange={(e) => setContent(e.target.value)} />
           </div>
           <div className="form-field sm:col-span-2">
             <label>狀態</label>
@@ -303,6 +317,34 @@ function EditTaskModal({ task, onClose, onSaved }: { task: TaskListItem; onClose
           </button>
         </ModalActions>
       </form>
+    </Modal>
+  );
+}
+
+function EditScheduleModal({
+  task,
+  onClose,
+  onViewInCalendar,
+  onSaved,
+}: {
+  task: TaskListItem;
+  onClose: () => void;
+  onViewInCalendar: (isoDate: string) => void;
+  onSaved: () => void;
+}) {
+  const date = task.isoDate ?? "";
+  return (
+    <Modal open onClose={onClose} title="編輯行程">
+      <EditEntryForm
+        entry={{ id: task.id, title: task.content, date, start: task.time, end: task.endTime ?? "", allDay: !task.time }}
+        onCancel={onClose}
+        onSaved={onSaved}
+      />
+      {date ? (
+        <button type="button" className="btn btn-outline btn-sm mt-3" onClick={() => onViewInCalendar(date)}>
+          到行事曆查看這天
+        </button>
+      ) : null}
     </Modal>
   );
 }
