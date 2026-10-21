@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { HrView } from "./HrView";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "人事假勤" };
-
+// 已併入人事財務表總頁
 export default function HrPage() {
-  return <HrView />;
+  redirect("/desktop/hr-finance?tab=hr");
 }

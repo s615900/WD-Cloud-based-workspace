@@ -158,7 +158,7 @@ export function HomeView() {
 
         <SummaryCard
           title="今日班表"
-          href="/desktop/plan"
+          href="/desktop/hr-finance?tab=plan"
           linkLabel="預排班"
           state={todayPlan.status === "ok" ? { status: "ok", data: todayPlan.entries } : todayPlan}
           empty="今天沒有排班"

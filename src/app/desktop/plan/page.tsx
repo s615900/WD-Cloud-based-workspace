@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { PlanView } from "./PlanView";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "預排班" };
-
+// 已併入人事財務表總頁
 export default function PlanPage() {
-  return <PlanView />;
+  redirect("/desktop/hr-finance?tab=plan");
 }

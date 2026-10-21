@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { FinanceView } from "./FinanceView";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "財務" };
-
+// 已併入人事財務表總頁
 export default function FinancePage() {
-  return <FinanceView />;
+  redirect("/desktop/hr-finance?tab=finance");
 }
