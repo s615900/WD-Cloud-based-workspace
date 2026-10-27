@@ -22,6 +22,65 @@ import { PublishModal } from "./CalendarModals";
 const startOfWeek = (ymd: string) => addDays(ymd, -weekdayOf(ymd));
 const entryColor = (e: RosterEntry) => (e.status === "取消" ? "#B7C2CC" : e.color || "#5A6570");
 
+// 賽事（以及其他非班別的多天行程）連續幾天同名時，月曆上接成「一條」橫跨多天的色條。
+// 一般班別（駿斯早班…）每天各自一條，不接，不然每週一到五的班會變成一條長長的色帶。
+const joinKey = (e: RosterEntry): string | null => (e.kind !== "班別" || e.title === "拍攝賽事" ? `${e.kind}|${e.title}` : null);
+
+// 每一天的「行」：同一個賽事連續幾天固定在同一行，色條才接得起來；每週日重新排。
+function buildLanes(dates: string[], entriesOf: (d: string) => RosterEntry[]): Map<string, (RosterEntry | null)[]> {
+  const out = new Map<string, (RosterEntry | null)[]>();
+  let prev: (RosterEntry | null)[] = [];
+  for (const date of dates) {
+    const list = [...entriesOf(date)].sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title) || a.id - b.id);
+    const lanes: (RosterEntry | null)[] = [];
+    const placed = new Set<number>();
+    if (weekdayOf(date) !== 0) {
+      prev.forEach((pe, i) => {
+        const k = pe && joinKey(pe);
+        if (!k) return;
+        const cur = list.find((e) => !placed.has(e.id) && joinKey(e) === k);
+        if (cur) {
+          lanes[i] = cur;
+          placed.add(cur.id);
+        }
+      });
+    }
+    for (const e of list) {
+      if (placed.has(e.id)) continue;
+      let i = 0;
+      while (lanes[i]) i++;
+      lanes[i] = e;
+      placed.add(e.id);
+    }
+    const filled = Array.from(lanes, (x) => x ?? null);
+    out.set(date, filled);
+    prev = filled;
+  }
+  return out;
+}
+
+type Span = { e: RosterEntry; lane: number; start: number; end: number; contPrev: boolean; contNext: boolean };
+
+// 一週（7 格）裡要畫的色條：連續同名的賽事合成一條橫跨多格，一般班別每天一條。
+function weekSpans(week: { date: string }[], lanesByDate: Map<string, (RosterEntry | null)[]>): Span[] {
+  const spans: Span[] = [];
+  const same = (a: RosterEntry | null | undefined, k: string | null) => !!a && !!k && joinKey(a) === k;
+  week.forEach(({ date }, col) => {
+    (lanesByDate.get(date) ?? []).forEach((e, lane) => {
+      if (!e) return;
+      const k = joinKey(e);
+      if (col > 0 && same(lanesByDate.get(week[col - 1]!.date)?.[lane], k)) return; // 已經算在前面那一條裡
+      let end = col;
+      while (end < 6 && same(lanesByDate.get(week[end + 1]!.date)?.[lane], k)) end++;
+      // 跨週的賽事：這一週的頭尾切平，看得出前面（後面）還有
+      const before = lanesByDate.get(addDays(date, -1)) ?? [];
+      const after = lanesByDate.get(addDays(week[end]!.date, 1)) ?? [];
+      spans.push({ e, lane, start: col, end, contPrev: col === 0 && before.some((x) => same(x, k)), contNext: end === 6 && after.some((x) => same(x, k)) });
+    });
+  });
+  return spans;
+}
+
 export function CalendarView({ initialDate }: { initialDate: string | null }) {
   const [config, setConfig] = useState<RosterConfig | null>(null);
   const [view, setView] = useState<"month" | "week">("month");
@@ -282,60 +341,70 @@ function CalendarBody({
     state.entries.filter((e) => e.date === date).sort((a, b) => a.start.localeCompare(b.start));
 
   if (view === "month") {
+    const grid = monthCellsPadded(calendarMonth);
+    const lanesByDate = buildLanes(grid.map((c) => c.date), entriesOf);
+    const weeks = Array.from({ length: grid.length / 7 }, (_, w) => grid.slice(w * 7, w * 7 + 7));
+    const countFrom = (date: string, from: number) => (lanesByDate.get(date) ?? []).slice(from).filter(Boolean).length;
     return (
       <div>
-        <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+        <div className="mb-1 grid grid-cols-7 gap-1 sm:gap-1.5">
           {WEEKDAYS.map((w) => (
             <div key={w} className="pb-1 text-center text-xs text-muted">
               {w}
             </div>
           ))}
-          {monthCellsPadded(calendarMonth).map(({ date, outside }) => {
-            const entries = entriesOf(date);
-            const selected = date === selectedDate;
-            return (
-              <div
-                key={date}
-                onClick={() => onDateClick(date)}
-                className={`min-h-[68px] min-w-0 cursor-pointer rounded-[9px] border px-[3px] py-1 hover:border-navy sm:min-h-[90px] sm:px-[7px] sm:py-1.5 ${
-                  selected ? "border-navy bg-navy-soft shadow-[inset_0_0_0_1px_var(--color-navy)]" : outside ? "border-line bg-[#FAFCFD]" : "border-line bg-white"
-                } ${outside ? "opacity-45" : ""}`}
-              >
-                <div className={`text-[13px] font-bold ${outside ? "font-normal text-muted" : ""}`}>
-                  {outside && Number(date.slice(8)) === 1 ? `${Number(date.slice(5, 7))}/` : ""}
-                  {Number(date.slice(8))}
-                </div>
-                {/* 手機：跟舊版一樣用彩色色條顯示名稱，格子窄所以字縮小、最多 2 條 */}
-                <div className="sm:hidden">
-                  {entries.slice(0, 2).map((e) => (
+        </div>
+        <div className="space-y-1 sm:space-y-1.5">
+          {weeks.map((week) => (
+            <div key={week[0]!.date} className="relative">
+              {/* 底層：日期格（只放日期數字與「+N」；色條在上面一層畫，賽事才能一條橫跨多天） */}
+              <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+                {week.map(({ date, outside }) => {
+                  const selected = date === selectedDate;
+                  return (
                     <div
-                      key={e.id}
-                      className="mt-0.5 overflow-hidden rounded-[3px] px-[2px] text-[9px] leading-[14px] font-bold whitespace-nowrap text-white"
-                      style={{ background: entryColor(e) }}
+                      key={date}
+                      onClick={() => onDateClick(date)}
+                      className={`relative min-h-[68px] min-w-0 cursor-pointer rounded-[9px] border px-[3px] py-1 hover:border-navy sm:min-h-[96px] sm:px-[7px] sm:py-1.5 ${
+                        selected ? "border-navy bg-navy-soft shadow-[inset_0_0_0_1px_var(--color-navy)]" : outside ? "border-line bg-[#FAFCFD]" : "border-line bg-white"
+                      }`}
                     >
-                      {e.title}
+                      <div className={`text-[13px] font-bold ${outside ? "font-normal text-muted/60" : ""}`}>
+                        {outside && Number(date.slice(8)) === 1 ? `${Number(date.slice(5, 7))}/` : ""}
+                        {Number(date.slice(8))}
+                      </div>
+                      {countFrom(date, 2) > 0 && (
+                        <div className="absolute right-1 bottom-0.5 text-[9px] leading-3 text-muted sm:hidden">+{countFrom(date, 2)}</div>
+                      )}
+                      {countFrom(date, 3) > 0 && (
+                        <div className="absolute right-1.5 bottom-1 hidden text-[10px] leading-3 text-muted sm:block">+{countFrom(date, 3)} 筆</div>
+                      )}
                     </div>
-                  ))}
-                  {entries.length > 2 && (
-                    <div className="text-center text-[9px] leading-3 text-muted">+{entries.length - 2}</div>
-                  )}
-                </div>
-                {/* 平板／電腦：行程條 */}
-                <div className="hidden sm:block">
-                  {entries.slice(0, 3).map((e) => (
-                    <div
-                      key={e.id}
-                      className="mt-1 h-4 overflow-hidden rounded px-[5px] py-px text-[10px] font-bold whitespace-nowrap text-white"
-                      style={{ background: entryColor(e) }}
-                    >
-                      {e.title}
-                    </div>
-                  ))}
-                  {entries.length > 3 && <div className="form-hint">+{entries.length - 3} 筆</div>}
-                </div>
+                  );
+                })}
               </div>
-            );
-          })}
+              {/* 上層：色條。點色條會穿透到下面的日期格，點哪天就選到哪天 */}
+              <div className="pointer-events-none absolute inset-x-0 top-[26px] grid auto-rows-[14px] grid-cols-7 gap-x-1 gap-y-0.5 sm:top-[28px] sm:auto-rows-[16px] sm:gap-x-1.5 sm:gap-y-1">
+                {weekSpans(week, lanesByDate)
+                  .filter((sp) => sp.lane < 3)
+                  .map((sp) => {
+                    const allOutside = week.slice(sp.start, sp.end + 1).every((c) => c.outside);
+                    return (
+                      <div
+                        key={`${sp.e.id}-${sp.start}`}
+                        className={`mx-[4px] overflow-hidden px-[3px] text-[9px] leading-[14px] font-bold text-ellipsis whitespace-nowrap text-white sm:mx-[8px] sm:px-[6px] sm:text-[11px] sm:leading-[16px] ${
+                          allOutside ? "opacity-45" : ""
+                        } ${sp.lane >= 2 ? "max-sm:hidden" : ""} ${sp.contPrev ? "rounded-l-none" : "rounded-l-[4px]"} ${sp.contNext ? "rounded-r-none" : "rounded-r-[4px]"}`}
+                        style={{ gridColumn: `${sp.start + 1} / ${sp.end + 2}`, gridRow: sp.lane + 1, background: entryColor(sp.e) }}
+                        title={sp.e.title}
+                      >
+                        {sp.e.title}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
