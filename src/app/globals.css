@@ -67,17 +67,6 @@
     @apply border border-danger bg-white text-danger;
   }
 
-  .month-select {
-    @apply py-[9px] max-sm:py-1.5 max-sm:pr-1 max-sm:pl-2 max-sm:text-[13px];
-  }
-  /* 手機版月份切換列：按鈕與下拉縮小，讓「上月／年／月／下月／本月」擠在同一排 */
-  .nav-compact {
-    @apply max-sm:flex-nowrap max-sm:gap-1;
-  }
-  .nav-compact .btn {
-    @apply max-sm:px-2 max-sm:py-1.5 max-sm:text-[13px];
-  }
-
   .card {
     @apply rounded-card bg-white px-[22px] py-5 shadow-card max-sm:p-4;
   }
@@ -184,4 +173,22 @@
 }
 .rich-content ol {
   list-style: decimal;
+}
+
+/* 手機版月份切換列：按鈕與下拉縮小、不換行，讓「上月／年／月／下月／本月」擠在同一排。
+   放在 @layer 外，才不會被 flex-wrap、flex-1 這些工具類別蓋掉。 */
+@media (max-width: 639px) {
+  .nav-compact {
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+  }
+  .nav-compact .btn {
+    flex: 0 0 auto !important;
+    padding: 7px 8px;
+    font-size: 12.5px;
+  }
+  .nav-compact select {
+    padding: 7px 4px 7px 8px !important;
+    font-size: 12.5px !important;
+  }
 }

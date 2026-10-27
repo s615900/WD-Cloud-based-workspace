@@ -227,6 +227,7 @@ export function CalendarView({ initialDate }: { initialDate: string | null }) {
                     </button>
                   ))}
                 </div>
+                <div className="nav-compact flex w-full items-center gap-2.5 sm:w-auto">
                 <button className="btn btn-outline" onClick={() => go(-1)}>
                   ‹ 上頁
                 </button>
@@ -255,6 +256,7 @@ export function CalendarView({ initialDate }: { initialDate: string | null }) {
                 <button className="btn btn-outline" onClick={() => go(1)}>
                   下頁 ›
                 </button>
+                </div>
               </div>
             </div>
             <CalendarBody
