@@ -6,6 +6,7 @@
 // ⚠️ record id 0 是有效值（每張表第一筆就是 0），所有判斷都用 typeof／正規表示式，不可用 falsy。
 
 import { AsyncLocalStorage } from "node:async_hooks";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { FINANCE_SHEETS, type FinanceSheet } from "./ragicFields";
 import { timedFetch } from "../ragic/timedFetch";
 
@@ -49,6 +50,22 @@ export function withFresh<T>(fn: () => Promise<T>): Promise<T> {
 function invalidate(sheet: FinanceSheet): void {
   const prefix = `${sheet}|`;
   for (const k of readCache.keys()) if (k.startsWith(prefix)) readCache.delete(k);
+  // 同時清掉 Vercel 各實例共用的資料快取（見 sharedList）；不在請求範圍內（例如腳本）時略過
+  try {
+    revalidateTag(`fin-${sheet}`, { expire: 0 });
+  } catch {
+    // ignore
+  }
+}
+
+// 跨實例共用的讀取快取（Next 資料快取）：Vercel 會同時開多個 Function 實例，
+// 光靠上面的記憶體快取，每個新實例第一次都要重讀 12 張表。寫入時用 tag 立刻清掉。
+const SHARED_TTL_S = 30;
+function sharedList(sheet: FinanceSheet, extraQuery?: string): Promise<FinanceRow[]> {
+  return unstable_cache(() => fetchList(sheet, extraQuery), ["fin-list", sheet, extraQuery ?? ""], {
+    revalidate: SHARED_TTL_S,
+    tags: [`fin-${sheet}`],
+  })();
 }
 
 async function fetchList(sheet: FinanceSheet, extraQuery?: string): Promise<FinanceRow[]> {
@@ -68,7 +85,7 @@ export function finList(sheet: FinanceSheet, extraQuery?: string): Promise<Finan
   const key = `${sheet}|${extraQuery ?? ""}`;
   const hit = readCache.get(key);
   if (hit && Date.now() - hit.at < READ_TTL_MS) return hit.promise;
-  const promise = fetchList(sheet, extraQuery);
+  const promise = sharedList(sheet, extraQuery);
   readCache.set(key, { at: Date.now(), promise });
   // 失敗的結果不要留在快取裡
   promise.catch(() => readCache.delete(key));
