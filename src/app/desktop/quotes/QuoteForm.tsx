@@ -464,7 +464,8 @@ function ProductPicker({
 }) {
   const [filter, setFilter] = useState("");
   const t = filter.toLowerCase();
-  const filtered = products.filter((p) => !t || p.name.toLowerCase().includes(t) || p.code.toLowerCase().includes(t));
+  // 反過來排：後面新增的產品在最下面，編號 00001 的排最上面
+  const filtered = products.filter((p) => !t || p.name.toLowerCase().includes(t) || p.code.toLowerCase().includes(t)).reverse();
 
   return (
     <Modal open onClose={onClose} title="選擇產品／服務">
