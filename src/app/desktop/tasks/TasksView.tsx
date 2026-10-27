@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { EmptyRow, Message, Modal, ModalActions, PageHeader, type MessageState } from "@/components/ui";
-import { apiFetch, errorText, sendJson } from "@/lib/client";
+import { apiFetch, errorText, sendJson, todayISO } from "@/lib/client";
 import { useHideDone } from "@/lib/taskPrefs";
 import type { TaskListItem } from "@/lib/types";
 import { EditEntryForm } from "../calendar/EditEntryForm";
@@ -60,6 +60,28 @@ function mergeRuns(tasks: TaskListItem[]): ListRow[] {
   return out;
 }
 
+// 排序用的完整日期 yyyy-MM-dd：行程有 isoDate；待辦的日期只有 MM/dd，年份取建立時間，再不然用到期日
+function sortDate(t: ListRow): string | null {
+  if (t.isoDate) return t.isoDate;
+  if (t.date && /^\d{2}\/\d{2}$/.test(t.date) && /^\d{4}/.test(t.createdAt)) return `${t.createdAt.slice(0, 4)}-${t.date.replace("/", "-")}`;
+  return t.dueDate ?? null;
+}
+
+// 永遠由近到遠：今天起最近的在最上面（新增的待辦／行程依日期穿插進去），已過去的排在後面（越近越前），沒有日期的排最後
+function sortRows(list: ListRow[], today: string): ListRow[] {
+  const key = (t: ListRow) => sortDate(t);
+  const rank = (t: ListRow): [number, number] => {
+    const d = key(t);
+    if (!d) return [2, 0];
+    const day = Date.parse(`${d}T00:00:00Z`) / 86_400_000;
+    return d >= today ? [0, day] : [1, -day];
+  };
+  return list
+    .map((t, i) => ({ t, i, r: rank(t) }))
+    .sort((a, b) => a.r[0] - b.r[0] || a.r[1] - b.r[1] || a.i - b.i)
+    .map((x) => x.t);
+}
+
 // 合併列的日期顯示：11/13–11/18 08:00
 function dateLabel(t: ListRow): string {
   if (!t.date) return t.dueDate ? `到期 ${t.dueDate}` : "（未排定）";
@@ -85,7 +107,7 @@ export function TasksView() {
   const requestKey = `${type}|${status}|${appliedKeyword}|${reloadCount}|${hideDone}`;
   const [result, setResult] = useState<{ key: string; rows: Rows } | null>(null);
   const rows: Rows = result?.key === requestKey ? result.rows : { status: "loading" };
-  const shown = rows.status === "ok" ? mergeRuns(rows.tasks) : [];
+  const shown = rows.status === "ok" ? sortRows(mergeRuns(rows.tasks), todayISO()) : [];
 
   useEffect(() => {
     let alive = true;
