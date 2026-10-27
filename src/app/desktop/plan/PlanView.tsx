@@ -317,7 +317,7 @@ export function PlanView() {
         <section className="card min-w-0">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <h3 className="mb-0">{month}</h3>
-            <div className="flex flex-wrap items-center gap-1.5 sm:flex-nowrap">
+            <div className="nav-compact flex flex-wrap items-center gap-1.5 sm:flex-nowrap">
               <button className="btn btn-outline px-3" onClick={() => setMonth((m) => addMonths(m, -1))}>
                 ‹ 上月
               </button>

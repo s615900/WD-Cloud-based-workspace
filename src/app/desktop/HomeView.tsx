@@ -348,7 +348,7 @@ function MonthRoster({ today }: { today: string }) {
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="nav-compact flex flex-wrap items-center gap-2.5">
           <button className="btn btn-outline" onClick={() => setMonth((m) => addMonths(m, -1))}>
             ‹ 上月
           </button>

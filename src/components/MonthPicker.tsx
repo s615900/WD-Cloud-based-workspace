@@ -26,10 +26,10 @@ export function MonthPicker({
   const pad = (n: number) => String(n).padStart(2, "0");
 
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1 sm:gap-1.5">
       <select
-        className={className}
-        style={{ width: "auto", paddingTop: 9, paddingBottom: 9, fontWeight: 600 }}
+        className={`${className} month-select`}
+        style={{ width: "auto", fontWeight: 600 }}
         value={year}
         onChange={(e) => onChange(`${e.target.value}-${pad(month)}`)}
         aria-label="選擇年份"
@@ -41,8 +41,8 @@ export function MonthPicker({
         ))}
       </select>
       <select
-        className={className}
-        style={{ width: "auto", paddingTop: 9, paddingBottom: 9, fontWeight: 600 }}
+        className={`${className} month-select`}
+        style={{ width: "auto", fontWeight: 600 }}
         value={month}
         onChange={(e) => onChange(`${year}-${pad(Number(e.target.value))}`)}
         aria-label="選擇月份"
