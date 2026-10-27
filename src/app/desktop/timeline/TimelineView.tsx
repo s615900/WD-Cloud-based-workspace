@@ -297,7 +297,8 @@ export function TimelineView() {
               className="flex items-center gap-3 rounded-xl border border-line bg-white py-2.5 pr-3.5 pl-3 shadow-[0_1px_2px_rgba(11,61,92,0.04)] transition hover:shadow-card"
               style={{ borderLeft: `4px solid ${it.color}` }}
             >
-              <div className="w-[92px] flex-none max-sm:w-[64px]">
+              {(it.kind === "待辦" || it.time) && (
+              <div className="flex-none sm:w-[112px]">
                 {it.kind === "待辦" ? (
                   <input
                     type="checkbox"
@@ -312,9 +313,10 @@ export function TimelineView() {
                   </span>
                 ) : null}
               </div>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <span className="truncate text-[15px] font-semibold">{it.title}</span>
+                  <span className="break-words text-[15px] font-semibold sm:truncate">{it.title}</span>
                   {it.tag && (
                     <span className="flex-none rounded-md px-1.5 py-px text-[11px] font-bold" style={{ background: `${KIND_COLOR[it.kind]}1f`, color: KIND_COLOR[it.kind] }}>
                       {it.tag}

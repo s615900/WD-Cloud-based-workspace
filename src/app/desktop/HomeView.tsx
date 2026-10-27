@@ -395,26 +395,26 @@ function MonthRoster({ today }: { today: string }) {
                 {dayExtras.map((x) => (
                   <div
                     key={x.key}
-                    className="mb-1 flex items-center gap-1.5 text-[11px] leading-4 sm:text-[12px]"
+                    className="mb-1 flex items-start gap-1 text-[10px] leading-4 sm:items-center sm:gap-1.5 sm:text-[12px]"
                     title={`${x.label}${x.sub ? ` ${x.sub}` : ""}`}
                   >
                     {x.kind === "biz" ? (
                       <span className="badge badge-gold flex-none px-1 py-0 text-[10px]">{x.tag}</span>
                     ) : (
-                      <span className="inline-block size-2 flex-none rounded-full" style={{ background: x.color || "#0B3D5C" }} />
+                      <span className="mt-[3px] inline-block size-2 flex-none rounded-full sm:mt-0" style={{ background: x.color || "#0B3D5C" }} />
                     )}
-                    <span className="min-w-0 truncate">{x.label}</span>
+                    <span className="min-w-0 break-all max-sm:leading-[13px] sm:truncate">{x.label}</span>
                   </div>
                 ))}
                 {dayExtras.length > 0 && list.length > 0 && <div className="my-1.5 border-t border-line" />}
                 {list.map((e) => (
                   <div
                     key={e.id}
-                    className="mb-1 rounded-md px-1.5 py-1 text-white"
+                    className="mb-1 rounded-md px-1 py-1 text-white sm:px-1.5"
                     style={{ background: colorOf(plan.templates, e.name) }}
                     title={`${e.name} ${e.start}–${e.end}`}
                   >
-                    <div className="truncate text-[11px] leading-4 font-bold sm:text-[12px]">{e.name}</div>
+                    <div className="text-[10px] leading-[13px] font-bold break-all sm:truncate sm:text-[12px] sm:leading-4">{e.name}</div>
                     <div className="hidden text-[10.5px] leading-3 opacity-90 sm:block">
                       {e.start}–{e.end}
                     </div>

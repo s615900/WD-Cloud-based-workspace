@@ -62,7 +62,7 @@ export function CountdownCard({ limit }: { limit?: number }) {
                 {c.yearly ? "・每年" : ""}
               </span>
             </span>
-            <b className={c.daysLeft === 0 ? "text-gold" : "text-navy"}>{c.daysLeft === 0 ? "就是今天" : `還有 ${c.daysLeft} 天`}</b>
+            <b className={`flex-none whitespace-nowrap ${c.daysLeft === 0 ? "text-gold" : "text-navy"}`}>{c.daysLeft === 0 ? "就是今天" : `還有 ${c.daysLeft} 天`}</b>
           </button>
         ))
       )}
