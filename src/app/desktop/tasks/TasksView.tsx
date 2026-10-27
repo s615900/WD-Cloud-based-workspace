@@ -19,6 +19,55 @@ const titleOf = (content: string) => {
   return lines.length > 1 ? `${first} …` : first;
 };
 
+// 清單上「連續日期、同名、同時間、同狀態」的行程（例如多天賽事每天一筆）合併成一列顯示；
+// run 是這一列包含的所有每日紀錄，完成／還原會一起套用，編輯則開第一天那筆。
+type ListRow = TaskListItem & { run?: TaskListItem[] };
+
+function dayNumber(iso: string): number {
+  return Math.round(Date.parse(`${iso}T00:00:00Z`) / 86_400_000);
+}
+
+function mergeRuns(tasks: TaskListItem[]): ListRow[] {
+  const groups = new Map<string, TaskListItem[]>();
+  for (const t of tasks) {
+    if (t.source !== "schedule" || !t.isoDate) continue;
+    const key = [t.type, t.content, t.time, t.endTime ?? "", t.status].join("\u0000");
+    groups.set(key, [...(groups.get(key) ?? []), t]);
+  }
+  const runOf = new Map<TaskListItem, TaskListItem[]>();
+  for (const list of groups.values()) {
+    const sorted = [...list].sort((a, b) => (a.isoDate ?? "").localeCompare(b.isoDate ?? ""));
+    let run: TaskListItem[] = [];
+    for (const t of sorted) {
+      const prev = run[run.length - 1];
+      if (prev && dayNumber(t.isoDate!) - dayNumber(prev.isoDate!) !== 1) run = [];
+      run.push(t);
+      for (const m of run) runOf.set(m, run);
+    }
+  }
+  const out: ListRow[] = [];
+  const emitted = new Set<TaskListItem[]>();
+  for (const t of tasks) {
+    const run = runOf.get(t);
+    if (!run || run.length < 2) {
+      out.push(t);
+      continue;
+    }
+    if (emitted.has(run)) continue;
+    emitted.add(run);
+    out.push({ ...run[0], run });
+  }
+  return out;
+}
+
+// 合併列的日期顯示：11/13–11/18 08:00
+function dateLabel(t: ListRow): string {
+  if (!t.date) return t.dueDate ? `到期 ${t.dueDate}` : "（未排定）";
+  const time = t.time ? ` ${t.time}` : "";
+  const last = t.run?.[t.run.length - 1];
+  return last && last.date !== t.date ? `${t.date}–${last.date}${time}` : `${t.date}${time}`;
+}
+
 type Rows = { status: "loading" } | { status: "error"; message: string } | { status: "ok"; tasks: TaskListItem[] };
 
 export function TasksView() {
@@ -36,6 +85,7 @@ export function TasksView() {
   const requestKey = `${type}|${status}|${appliedKeyword}|${reloadCount}|${hideDone}`;
   const [result, setResult] = useState<{ key: string; rows: Rows } | null>(null);
   const rows: Rows = result?.key === requestKey ? result.rows : { status: "loading" };
+  const shown = rows.status === "ok" ? mergeRuns(rows.tasks) : [];
 
   useEffect(() => {
     let alive = true;
@@ -52,10 +102,11 @@ export function TasksView() {
   }, [type, status, appliedKeyword, hideDone, requestKey]);
 
   // 直接在清單上切換完成／準備中，不用開彈窗
-  async function toggleDone(t: TaskListItem) {
+  async function toggleDone(t: ListRow) {
     setToggleError("");
     try {
-      await sendJson(`/api/tasks/${t.id}`, "PATCH", { status: t.status === "完成" ? "準備中" : "完成", source: t.source ?? "todo" });
+      const status = t.status === "完成" ? "準備中" : "完成";
+      await Promise.all((t.run ?? [t]).map((x) => sendJson(`/api/tasks/${x.id}`, "PATCH", { status, source: x.source ?? "todo" })));
       setReloadCount((n) => n + 1);
     } catch (err) {
       setToggleError(errorText(err, "更改狀態失敗"));
@@ -163,7 +214,7 @@ export function TasksView() {
         ) : rows.tasks.length === 0 ? (
           <p className="empty-hint">沒有符合的待辦事項</p>
         ) : (
-          rows.tasks.map((t, idx) => (
+          shown.map((t, idx) => (
             <div
               key={idx}
               role="button"
@@ -182,7 +233,7 @@ export function TasksView() {
                 {titleOf(t.content)}
               </div>
               <div className="mt-1 text-xs text-muted">
-                {t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : "（未排定）"}　建立 {t.createdAt}{t.dueDate ? `　到期 ${t.dueDate}` : ""}
+                {dateLabel(t)}　建立 {t.createdAt}{t.dueDate ? `　到期 ${t.dueDate}` : ""}
               </div>
             </div>
           ))
@@ -211,7 +262,7 @@ export function TasksView() {
               <EmptyRow colSpan={6}>沒有符合的待辦事項</EmptyRow>
             ) : (
               // 用陣列索引當 key：/ragicforms21/1 跟 /ragicforms21/8 的紀錄編號互不相干，可能撞號
-              rows.tasks.map((t, idx) => (
+              shown.map((t, idx) => (
                 <tr key={idx} className="cursor-pointer" onClick={() => openItem(t)}>
                   <td>
                     <span className={`badge ${t.status === "完成" ? "badge-teal" : t.status === "取消" ? "badge-muted" : "badge-gold"}`}>{t.status}</span>
@@ -224,7 +275,7 @@ export function TasksView() {
                     {titleOf(t.content)}
                   </td>
                   <td className="whitespace-nowrap">
-                    {t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : t.dueDate ? `到期 ${t.dueDate}` : "（未排定）"}
+                    {dateLabel(t)}
                   </td>
                   <td className="form-hint whitespace-nowrap">{t.createdAt}</td>
                   <td className="whitespace-nowrap">
@@ -290,7 +341,7 @@ export function TasksView() {
 }
 
 // 完成／還原按鈕；取消的行程要到行事曆恢復，這裡不給按
-function DoneButton({ task, onToggle, className = "" }: { task: TaskListItem; onToggle: (t: TaskListItem) => void; className?: string }) {
+function DoneButton({ task, onToggle, className = "" }: { task: ListRow; onToggle: (t: ListRow) => void; className?: string }) {
   if (task.status === "取消") return null;
   const done = task.status === "完成";
   return (
