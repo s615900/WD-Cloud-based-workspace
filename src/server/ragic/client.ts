@@ -8,6 +8,7 @@
 // 欄位編號（不是欄位名稱）。GET 回應用中文欄位名當 key，這兩者不對稱（見 fields.ts）。
 
 import { sheetUrl, SHEET } from "./fields";
+import { cachedRead, timedFetch } from "./timedFetch";
 
 function apiKey(): string {
   const val = process.env["RAGIC_API_KEY"];
@@ -29,15 +30,28 @@ export type RagicRecordData = Record<string, unknown>;
 
 // 查詢整張表（GET，無 recordId）：回傳物件，key 是 Ragic 內部紀錄編號（字串數字），
 // value 是該筆紀錄的欄位資料（用中文欄位名當 key）。
+//
+// 讀取結果會在記憶體短暫快取（見 timedFetch.ts）；模板／設定／空檔幾乎不變動所以較久。
+// 會「讀了再寫」的流程傳 { fresh: true } 強制重讀。
+const LONG_TTL_SHEETS: ReadonlySet<keyof typeof SHEET> = new Set(["template", "config", "freeslot"]);
+
 export async function ragicList(
   sheet: keyof typeof SHEET,
   extraQuery?: string,
+  opts?: { fresh?: boolean },
 ): Promise<Record<string, RagicRecordData>> {
-  const res = await fetch(buildUrl(sheet, undefined, extraQuery));
-  if (!res.ok) {
-    throw new Error(`Ragic 查詢失敗: ${res.status} ${await res.text()}`);
-  }
-  return res.json() as Promise<Record<string, RagicRecordData>>;
+  return cachedRead(
+    `ragic|${sheet}|${extraQuery ?? ""}`,
+    LONG_TTL_SHEETS.has(sheet) ? 60_000 : 15_000,
+    async () => {
+      const res = await timedFetch(buildUrl(sheet, undefined, extraQuery));
+      if (!res.ok) {
+        throw new Error(`Ragic 查詢失敗: ${res.status} ${await res.text()}`);
+      }
+      return (await res.json()) as Record<string, RagicRecordData>;
+    },
+    opts?.fresh,
+  );
 }
 
 // 查詢單筆紀錄：Ragic 即使指定 recordId，回應仍包成「用紀錄編號當 key」的物件
@@ -46,7 +60,7 @@ export async function ragicGetOne(
   sheet: keyof typeof SHEET,
   recordId: number | string,
 ): Promise<RagicRecordData> {
-  const res = await fetch(buildUrl(sheet, recordId));
+  const res = await timedFetch(buildUrl(sheet, recordId));
   if (!res.ok) {
     throw new Error(`Ragic 查詢失敗: ${res.status} ${await res.text()}`);
   }
@@ -64,7 +78,7 @@ export async function ragicCreate(
   sheet: keyof typeof SHEET,
   fields: Record<string, string>,
 ): Promise<number> {
-  const res = await fetch(buildUrl(sheet), {
+  const res = await timedFetch(buildUrl(sheet), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(fields).toString(),
@@ -85,7 +99,7 @@ export async function ragicUpdate(
   recordId: number | string,
   fields: Record<string, string>,
 ): Promise<void> {
-  const res = await fetch(buildUrl(sheet, recordId), {
+  const res = await timedFetch(buildUrl(sheet, recordId), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(fields).toString(),
@@ -96,7 +110,7 @@ export async function ragicUpdate(
 }
 
 export async function ragicDelete(sheet: keyof typeof SHEET, recordId: number | string): Promise<void> {
-  const res = await fetch(buildUrl(sheet, recordId), { method: "DELETE" });
+  const res = await timedFetch(buildUrl(sheet, recordId), { method: "DELETE" });
   if (!res.ok) {
     throw new Error(`Ragic 刪除失敗: ${res.status} ${await res.text()}`);
   }

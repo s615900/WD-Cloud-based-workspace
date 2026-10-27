@@ -7,6 +7,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { FINANCE_SHEETS, type FinanceSheet } from "./ragicFields";
+import { timedFetch } from "../ragic/timedFetch";
 
 function env(key: string): string {
   const val = process.env[key];
@@ -37,7 +38,7 @@ function toForm(fields: WriteFields): string {
 // 所以讀取結果在記憶體裡短暫快取（TTL 很短），同一時間相同的讀取只送一次；
 // 任何寫入都會清掉該張表的快取。會「寫入」的流程（POST／PATCH／DELETE、每日引擎）一律用 withFresh
 // 包起來繞過快取，確保驗證、來源鍵防重複、流水號都是讀到最新資料。
-const READ_TTL_MS = 4000;
+const READ_TTL_MS = 20_000;
 const readCache = new Map<string, { at: number; promise: Promise<FinanceRow[]> }>();
 const freshScope = new AsyncLocalStorage<boolean>();
 
@@ -51,7 +52,7 @@ function invalidate(sheet: FinanceSheet): void {
 }
 
 async function fetchList(sheet: FinanceSheet, extraQuery?: string): Promise<FinanceRow[]> {
-  const res = await fetch(buildUrl(sheet, undefined, `limit=10000&subtables=0${extraQuery ? `&${extraQuery}` : ""}`), {
+  const res = await timedFetch(buildUrl(sheet, undefined, `limit=10000&subtables=0${extraQuery ? `&${extraQuery}` : ""}`), {
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`Ragic 查詢失敗: ${res.status} ${(await res.text()).slice(0, 200)}`);
@@ -76,7 +77,7 @@ export function finList(sheet: FinanceSheet, extraQuery?: string): Promise<Finan
 
 // 新增一筆，回傳 Ragic 配發的紀錄編號（可能是 0）
 export async function finCreate(sheet: FinanceSheet, fields: WriteFields): Promise<number> {
-  const res = await fetch(buildUrl(sheet), {
+  const res = await timedFetch(buildUrl(sheet), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: toForm(fields),
@@ -92,7 +93,7 @@ export async function finCreate(sheet: FinanceSheet, fields: WriteFields): Promi
 }
 
 export async function finUpdate(sheet: FinanceSheet, recordId: number | string, fields: WriteFields): Promise<void> {
-  const res = await fetch(buildUrl(sheet, recordId), {
+  const res = await timedFetch(buildUrl(sheet, recordId), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: toForm(fields),
@@ -104,7 +105,7 @@ export async function finUpdate(sheet: FinanceSheet, recordId: number | string, 
 }
 
 export async function finDelete(sheet: FinanceSheet, recordId: number | string): Promise<void> {
-  const res = await fetch(buildUrl(sheet, recordId), { method: "DELETE" });
+  const res = await timedFetch(buildUrl(sheet, recordId), { method: "DELETE" });
   if (!res.ok) throw new Error(`Ragic 刪除失敗: ${res.status} ${await res.text()}`);
   invalidate(sheet);
 }

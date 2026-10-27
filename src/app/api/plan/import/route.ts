@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const prefix = typeof body.prefix === "string" ? body.prefix.trim() : "";
 
   try {
-    const [plan, schedule, templateData] = await Promise.all([listPlan(), listAllSchedule(), ragicList("template")]);
+    const [plan, schedule, templateData] = await Promise.all([listPlan({ fresh: true }), listAllSchedule({ fresh: true }), ragicList("template")]);
     const templates = Object.entries(templateData).map(([id, r]) => toTemplateItem(id, r));
     const key = (date: string, title: string, start: string, end: string) => `${date}|${title}|${start}|${end}`;
     const existing = new Set(schedule.filter((s) => s.kind === "班別").map((s) => key(s.date, s.title, s.start, s.end)));

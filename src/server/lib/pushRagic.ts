@@ -8,6 +8,8 @@
 // 讀寫慣例同其他 Ragic 客戶端：GET 回應用「中文欄位名稱」當 key（PUSH_READ_FIELD），
 // POST 寫入用「欄位內部編號」（PUSH_FIELD），兩者混用會 HTTP 200 但什麼都沒寫進去。
 
+import { timedFetch } from "../ragic/timedFetch";
+
 function getEnv(key: string): string {
   const val = process.env[key];
   if (!val) throw new Error(`${key} is not set`);
@@ -59,7 +61,7 @@ function str(v: unknown): string {
 }
 
 export async function listSubscriptions(): Promise<PushSubscriptionRecord[]> {
-  const res = await fetch(buildUrl(undefined, "limit=1000&subtables=0"), { cache: "no-store" });
+  const res = await timedFetch(buildUrl(undefined, "limit=1000&subtables=0"), { cache: "no-store" });
   if (!res.ok) throw new Error(`Ragic 查詢失敗: ${res.status} ${await res.text()}`);
   const data = (await res.json()) as Record<string, Record<string, unknown>>;
   return Object.entries(data)
@@ -88,7 +90,7 @@ export async function saveSubscription(sub: { deviceName: string; endpoint: stri
     [PUSH_FIELD.p256dh, sub.p256dh],
     [PUSH_FIELD.auth, sub.auth],
   ]).toString();
-  const res = await fetch(buildUrl(existing?.id), {
+  const res = await timedFetch(buildUrl(existing?.id), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -97,7 +99,7 @@ export async function saveSubscription(sub: { deviceName: string; endpoint: stri
 }
 
 export async function deleteSubscriptionById(id: number): Promise<void> {
-  const res = await fetch(buildUrl(id), { method: "DELETE" });
+  const res = await timedFetch(buildUrl(id), { method: "DELETE" });
   if (!res.ok) throw new Error(`Ragic 刪除失敗: ${res.status} ${await res.text()}`);
 }
 

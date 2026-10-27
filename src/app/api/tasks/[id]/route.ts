@@ -50,7 +50,7 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) 
       return json({ success: false, error: "行程只能在這裡更改狀態，標題與時間請用行程的編輯功能" }, 400);
     }
     try {
-      const entry = (await listAllSchedule()).find((e) => String(e.id) === id && e.userId === userId && e.kind === "個人行程");
+      const entry = (await listAllSchedule({ fresh: true })).find((e) => String(e.id) === id && e.userId === userId && e.kind === "個人行程");
       if (!entry) return json({ success: false, error: "找不到這筆行程" }, 404);
       // 已取消的行程維持取消，不被「準備中」蓋掉
       if (entry.status === "取消") return json({ success: false, error: "此行程已取消，請至行事曆恢復" }, 400);

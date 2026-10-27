@@ -33,7 +33,7 @@ async function buildTodaysPublishText(): Promise<
   const start = todayYMD();
   const dates = Array.from({ length: config.publishDays }, (_, i) => addDays(start, i));
 
-  const all = await listAllSchedule();
+  const all = await listAllSchedule({ fresh: true });
   const byDate = new Map<string, ScheduleEntry[]>();
   for (const e of all) {
     const list = byDate.get(e.date);

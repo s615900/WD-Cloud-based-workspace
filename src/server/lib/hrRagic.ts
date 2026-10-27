@@ -11,6 +11,8 @@
 // POST 寫入用「欄位內部編號」（*_FIELD），兩者混用會 HTTP 200 但什麼都沒寫進去。
 // 日期欄位寫入用 yyyy/MM/dd（toRagicDate），讀回來也是 yyyy/MM/dd，前端要轉成 yyyy-MM-dd。
 
+import { timedFetch } from "../ragic/timedFetch";
+
 function getEnv(key: string): string {
   const val = process.env[key];
   if (!val) throw new Error(`${key} is not set`);
@@ -84,14 +86,14 @@ export type RagicRecordData = Record<string, unknown>;
 
 // 預設 Ragic 一次最多回 1000 筆；人事資料量小，用 limit 一次取完
 export async function hrList(sheet: SheetKey, extraQuery = "limit=10000&subtables=0"): Promise<Record<string, RagicRecordData>> {
-  const res = await fetch(buildUrl(sheet, undefined, extraQuery), { cache: "no-store" });
+  const res = await timedFetch(buildUrl(sheet, undefined, extraQuery), { cache: "no-store" });
   if (!res.ok) throw new Error(`Ragic 查詢失敗: ${res.status} ${await res.text()}`);
   return res.json() as Promise<Record<string, RagicRecordData>>;
 }
 
 // 單筆查詢：回應仍包成「用紀錄編號當 key」的物件，查無紀錄時是空物件 {}（回傳 null）
 export async function hrGetOne(sheet: SheetKey, recordId: number | string): Promise<RagicRecordData | null> {
-  const res = await fetch(buildUrl(sheet, recordId), { cache: "no-store" });
+  const res = await timedFetch(buildUrl(sheet, recordId), { cache: "no-store" });
   if (!res.ok) throw new Error(`Ragic 查詢失敗: ${res.status} ${await res.text()}`);
   const data = (await res.json()) as Record<string, RagicRecordData>;
   return data[String(recordId)] ?? Object.values(data)[0] ?? null;
@@ -106,7 +108,7 @@ async function checkWrite(res: Response, action: string): Promise<{ ragicId?: nu
 }
 
 export async function hrCreate(sheet: SheetKey, fields: Record<string, string>): Promise<number> {
-  const res = await fetch(buildUrl(sheet), {
+  const res = await timedFetch(buildUrl(sheet), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(fields).toString(),
@@ -119,7 +121,7 @@ export async function hrCreate(sheet: SheetKey, fields: Record<string, string>):
 }
 
 export async function hrUpdate(sheet: SheetKey, recordId: number | string, fields: Record<string, string>): Promise<void> {
-  const res = await fetch(buildUrl(sheet, recordId), {
+  const res = await timedFetch(buildUrl(sheet, recordId), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(fields).toString(),
@@ -128,6 +130,6 @@ export async function hrUpdate(sheet: SheetKey, recordId: number | string, field
 }
 
 export async function hrDelete(sheet: SheetKey, recordId: number | string): Promise<void> {
-  const res = await fetch(buildUrl(sheet, recordId), { method: "DELETE" });
+  const res = await timedFetch(buildUrl(sheet, recordId), { method: "DELETE" });
   if (!res.ok) throw new Error(`Ragic 刪除失敗: ${res.status} ${await res.text()}`);
 }

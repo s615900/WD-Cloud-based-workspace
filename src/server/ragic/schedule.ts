@@ -82,8 +82,10 @@ function toScheduleEntry(id: string, r: RagicRecordData): ScheduleEntry {
 
 // 整張表讀回來，呼叫端自行依日期／使用者／群組等條件篩選——排班行程表預期資料量不大
 // （個人使用情境），不需要另外做分頁查詢。
-export async function listAllSchedule(): Promise<ScheduleEntry[]> {
-  const data = await ragicList("schedule");
+//
+// 讀取有短暫快取；排程／寫入前要讀最新資料的呼叫端傳 { fresh: true }。
+export async function listAllSchedule(opts?: { fresh?: boolean }): Promise<ScheduleEntry[]> {
+  const data = await ragicList("schedule", "subtables=0", opts);
   return Object.entries(data).map(([id, r]) => toScheduleEntry(id, r));
 }
 
@@ -277,7 +279,7 @@ export async function deleteSchedule(id: number | string, opts: WriteOptions = {
 // 整組刪除（排班群組）：先讀回整張表找出同一個 batchId 的所有筆數，逐筆刪除。
 // 併發上限 3，避免短時間內對 Ragic 打過多平行請求。
 export async function deleteScheduleBatch(batchId: string): Promise<number> {
-  const all = await listAllSchedule();
+  const all = await listAllSchedule({ fresh: true });
   const targets = all.filter((e) => e.batchId === batchId);
   await runWithConcurrency(targets, 3, (t) => ragicDelete("schedule", t.id));
   return targets.length;

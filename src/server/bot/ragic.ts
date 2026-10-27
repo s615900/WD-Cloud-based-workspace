@@ -11,6 +11,7 @@ import {
   deleteFreeSlot,
   formatFreeSlotTimestamp,
 } from "../ragic/freeSlot";
+import { timedFetch } from "../ragic/timedFetch";
 
 // 新增紀錄用的欄位編號（Ragic 內部欄位 ID，不是欄位名稱）
 const FIELD_ID = {
@@ -121,7 +122,7 @@ export async function saveRecordToRagic(
     body.set(FIELD_ID.狀態, defaultStatus);
   }
 
-  const response = await fetch(url, {
+  const response = await timedFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
@@ -159,7 +160,7 @@ export async function queryRecordsFromRagic(
   });
   const url = `${base}?api&${params.toString()}`;
 
-  const response = await fetch(url);
+  const response = await timedFetch(url);
   if (!response.ok) {
     throw new Error(`Ragic 查詢失敗: ${response.status}`);
   }
@@ -443,7 +444,7 @@ export async function updateTaskInRagic(
     }
   }
 
-  const response = await fetch(url, {
+  const response = await timedFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),

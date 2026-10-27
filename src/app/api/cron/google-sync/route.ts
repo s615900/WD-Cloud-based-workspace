@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const googleEvents = await listGoogleEvents(`${firstDay}T00:00:00+08:00`, `${lastDay}T23:59:59+08:00`);
-    const entries = (await listAllSchedule()).filter((e) => e.userId === userId && e.kind === "個人行程");
+    const entries = (await listAllSchedule({ fresh: true })).filter((e) => e.userId === userId && e.kind === "個人行程");
     const byGcalId = new Map(entries.filter((e) => e.gcalId).map((e) => [e.gcalId, e]));
     const seenGcalIds = new Set<string>();
 

@@ -12,6 +12,8 @@
 // 沒有意義，只是用來標記「這幾個欄位是同一列」。編輯既有子表格列則用該列真實的正數列號
 // （例如 "1000156_12"），刪除列用 "DELSUB_<子表格欄位編號>=<列號>"。
 
+import { cachedRead, timedFetch } from "../ragic/timedFetch";
+
 function getEnv(key: string): string {
   const val = process.env[key];
   if (!val) throw new Error(`${key} is not set`);
@@ -62,15 +64,24 @@ export function unwrapSubtableRows(rows: unknown): RagicRecordData[] {
 
 // 查詢整張表（GET，無 recordId）：回傳物件，key 是 Ragic 內部紀錄編號（字串數字），
 // value 是該筆紀錄的欄位資料。extraQuery 可帶 where=、subtables=0 等額外查詢參數。
+// 讀取結果在記憶體短暫快取（見 ragic/timedFetch.ts），任何寫入都會清掉。
 export async function ragicList(
   sheetPath: string,
   extraQuery?: string,
+  opts?: { fresh?: boolean },
 ): Promise<Record<string, RagicRecordData>> {
-  const res = await fetch(buildUrl(sheetPath, undefined, extraQuery));
-  if (!res.ok) {
-    throw new Error(`Ragic 查詢失敗: ${res.status} ${await res.text()}`);
-  }
-  return res.json() as Promise<Record<string, RagicRecordData>>;
+  return cachedRead(
+    `quot|${sheetPath}|${extraQuery ?? ""}`,
+    30_000,
+    async () => {
+      const res = await timedFetch(buildUrl(sheetPath, undefined, extraQuery));
+      if (!res.ok) {
+        throw new Error(`Ragic 查詢失敗: ${res.status} ${await res.text()}`);
+      }
+      return (await res.json()) as Record<string, RagicRecordData>;
+    },
+    opts?.fresh,
+  );
 }
 
 // 查詢單筆紀錄（GET，含 recordId）：預設會帶出子表格資料。
@@ -82,7 +93,7 @@ export async function ragicGetOne(
   sheetPath: string,
   recordId: number | string,
 ): Promise<RagicRecordData> {
-  const res = await fetch(buildUrl(sheetPath, recordId));
+  const res = await timedFetch(buildUrl(sheetPath, recordId));
   if (!res.ok) {
     throw new Error(`Ragic 查詢失敗: ${res.status} ${await res.text()}`);
   }
@@ -100,7 +111,7 @@ export async function ragicCreate(
   sheetPath: string,
   fields: Record<string, string>,
 ): Promise<number> {
-  const res = await fetch(buildUrl(sheetPath), {
+  const res = await timedFetch(buildUrl(sheetPath), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(fields).toString(),
@@ -121,7 +132,7 @@ export async function ragicUpdate(
   recordId: number | string,
   fields: Record<string, string>,
 ): Promise<void> {
-  const res = await fetch(buildUrl(sheetPath, recordId), {
+  const res = await timedFetch(buildUrl(sheetPath, recordId), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(fields).toString(),
@@ -137,7 +148,7 @@ export async function ragicUpdate(
 }
 
 export async function ragicDelete(sheetPath: string, recordId: number | string): Promise<void> {
-  const res = await fetch(buildUrl(sheetPath, recordId), { method: "DELETE" });
+  const res = await timedFetch(buildUrl(sheetPath, recordId), { method: "DELETE" });
   if (!res.ok) {
     throw new Error(`Ragic 刪除失敗: ${res.status} ${await res.text()}`);
   }
@@ -551,7 +562,7 @@ export async function replaceQuoteItems(
     for (const id of existingIds) {
       delBody.append(`DELSUB_${QUOTE_ITEM_SUBTABLE_FIELD}`, String(id));
     }
-    const res = await fetch(buildUrl(SHEET.quotes, recordId), {
+    const res = await timedFetch(buildUrl(SHEET.quotes, recordId), {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: delBody.toString(),
@@ -617,7 +628,7 @@ export async function replaceContractItems(
     for (const id of existingIds) {
       delBody.append(`DELSUB_${CONTRACT_ITEM_SUBTABLE_FIELD}`, String(id));
     }
-    const res = await fetch(buildUrl(SHEET.contracts, recordId), {
+    const res = await timedFetch(buildUrl(SHEET.contracts, recordId), {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: delBody.toString(),
@@ -676,7 +687,7 @@ export async function uploadQuoteSignature(
 ): Promise<void> {
   const form = new FormData();
   form.append(QUOTE_FIELD.簽名檔, new Blob([new Uint8Array(fileBuffer)], { type: mimeType }), filename);
-  const res = await fetch(buildUrl(SHEET.quotes, recordId), {
+  const res = await timedFetch(buildUrl(SHEET.quotes, recordId), {
     method: "POST",
     body: form,
   });
@@ -700,7 +711,7 @@ export async function uploadContractFile(
 ): Promise<void> {
   const form = new FormData();
   form.append(fieldId, new Blob([new Uint8Array(fileBuffer)], { type: mimeType }), filename);
-  const res = await fetch(buildUrl(SHEET.contracts, recordId), {
+  const res = await timedFetch(buildUrl(SHEET.contracts, recordId), {
     method: "POST",
     body: form,
   });

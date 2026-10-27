@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       return json({ success: false, error: "這張報價單還沒有報價單編號，無法產生合約" }, 400);
     }
 
-    const contracts = await ragicList(SHEET.contracts, "subtables=0");
+    const contracts = await ragicList(SHEET.contracts, "subtables=0", { fresh: true });
     const existing = Object.entries(contracts)
       .map(([id, record]) => toContractSummary(id, record))
       .find((c) => c.quoteNumber === quoteNumber && c.status !== "作廢");

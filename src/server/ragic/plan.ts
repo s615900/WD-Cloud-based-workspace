@@ -25,8 +25,8 @@ function toPlanEntry(id: string, r: RagicRecordData): PlanEntry {
   };
 }
 
-export async function listPlan(): Promise<PlanEntry[]> {
-  const data = await ragicList("plan");
+export async function listPlan(opts?: { fresh?: boolean }): Promise<PlanEntry[]> {
+  const data = await ragicList("plan", "subtables=0", opts);
   return Object.entries(data)
     .map(([id, r]) => toPlanEntry(id, r))
     .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));

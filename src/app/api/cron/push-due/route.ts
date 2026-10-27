@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     const payloads: PushPayload[] = [];
 
     // 1) 個人行程：開始時間距離現在 (LEAD - window, LEAD] 分鐘
-    const schedule = await listAllSchedule();
+    const schedule = await listAllSchedule({ fresh: true });
     for (const e of schedule) {
       if (e.userId !== userId || e.kind !== "個人行程" || e.status !== "正常" || e.allDay) continue;
       const [h, m] = e.start.split(":").map(Number);
