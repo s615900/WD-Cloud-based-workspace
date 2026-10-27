@@ -36,6 +36,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (!validNonNegative(body.rate)) return json({ success: false, error: "rate 必須是 0 以上的數字" }, 400);
     patch.rate = body.rate;
   }
+  if (body.double !== undefined) {
+    if (typeof body.double !== "boolean") return json({ success: false, error: "double 必須是布林值" }, 400);
+    patch.double = body.double;
+  }
   if (body.note !== undefined) patch.note = typeof body.note === "string" ? body.note.trim() : "";
 
   if (Object.keys(patch).length === 0) return json({ success: false, error: "沒有可更新的欄位" }, 400);

@@ -13,6 +13,8 @@ export interface EditableEntry {
   start: string; // HH:mm
   end: string; // HH:mm
   allDay: boolean;
+  countdown?: boolean; // 有值才顯示「倒數日」勾選（待辦事項頁不帶這個欄位）
+  yearly?: boolean;
 }
 
 export function EditEntryForm({
@@ -28,6 +30,8 @@ export function EditEntryForm({
   const [date, setDate] = useState(entry.date);
   const [start, setStart] = useState(entry.start);
   const [end, setEnd] = useState(entry.end);
+  const [countdown, setCountdown] = useState(entry.countdown ?? false);
+  const [yearly, setYearly] = useState(entry.yearly ?? false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<MessageState>({ text: "" });
 
@@ -52,6 +56,7 @@ export function EditEntryForm({
         title: title.trim(),
         date,
         ...(entry.allDay ? {} : { start, end }),
+        ...(entry.countdown === undefined ? {} : { countdown, yearly: countdown && yearly }),
       });
       onSaved();
     } catch (err) {
@@ -71,6 +76,20 @@ export function EditEntryForm({
           <label>日期</label>
           <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
+        {entry.countdown === undefined ? null : (
+          <div className="form-field sm:col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={countdown} onChange={(e) => setCountdown(e.target.checked)} />
+              加入倒數日
+            </label>
+            {countdown && (
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={yearly} onChange={(e) => setYearly(e.target.checked)} />
+                每年重複（國曆）
+              </label>
+            )}
+          </div>
+        )}
         {entry.allDay ? null : (
           <>
             <div className="form-field">

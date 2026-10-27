@@ -43,6 +43,8 @@ interface ScheduleBody {
   color?: unknown;
   location?: unknown;
   note?: unknown;
+  countdown?: unknown;
+  yearly?: unknown;
 }
 
 export async function POST(req: Request) {
@@ -55,6 +57,11 @@ export async function POST(req: Request) {
     return json({ success: false, error: "allDay 必須是布林值" }, 400);
   }
   const allDay = body.allDay === true;
+  for (const key of ["countdown", "yearly"] as const) {
+    if (body[key] !== undefined && typeof body[key] !== "boolean") {
+      return json({ success: false, error: `${key} 必須是布林值` }, 400);
+    }
+  }
 
   if (body.status !== undefined && body.status !== "正常" && body.status !== "取消") {
     return json({ success: false, error: "status 必須是 正常 或 取消" }, 400);
@@ -116,6 +123,8 @@ export async function POST(req: Request) {
       color,
       location,
       note,
+      countdown: body.countdown === true,
+      yearly: body.yearly === true,
     });
     return json({ success: true, id });
   } catch (err) {

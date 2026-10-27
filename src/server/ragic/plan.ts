@@ -2,7 +2,7 @@
 // 工時／薪資用的草稿，不會出現在行事曆、LINE 提醒或空檔推算。
 // 欄位編號放在 fields.ts 的 F_PLAN；GET 用中文欄位名、POST 用欄位編號（見 fields.ts 說明）。
 import { ragicList, ragicCreate, ragicUpdate, ragicDelete, type RagicRecordData } from "./client";
-import { F_PLAN } from "./fields";
+import { F_PLAN, PLAN_DOUBLE_FIELD_ID, planDoubleConfigured } from "./fields";
 import type { PlanEntry } from "@/lib/types";
 
 // Ragic 日期欄位讀回來是 yyyy/MM/dd，統一轉回 yyyy-MM-dd
@@ -21,6 +21,7 @@ function toPlanEntry(id: string, r: RagicRecordData): PlanEntry {
     breakMin: Number(r["休息分鐘"] ?? 0) || 0,
     rate: Number(r["時薪"] ?? 0) || 0,
     note: String(r["備註"] ?? ""),
+    double: r["雙倍"] === "是",
   };
 }
 
@@ -42,6 +43,7 @@ export async function createPlan(input: PlanInput): Promise<number> {
     [String(F_PLAN.breakMin)]: String(input.breakMin),
     [String(F_PLAN.rate)]: String(input.rate),
     [String(F_PLAN.note)]: input.note,
+    ...(planDoubleConfigured() && input.double ? { [PLAN_DOUBLE_FIELD_ID]: "是" } : {}),
   });
 }
 
@@ -55,12 +57,15 @@ const UPDATABLE = {
   note: F_PLAN.note,
 } as const;
 
+const patchDouble = (input: Partial<PlanInput>) => input.double;
+
 export async function updatePlan(id: number | string, input: Partial<PlanInput>): Promise<void> {
   const fields: Record<string, string> = {};
   for (const [key, fieldId] of Object.entries(UPDATABLE) as [keyof typeof UPDATABLE, number][]) {
     const v = input[key];
     if (v !== undefined) fields[String(fieldId)] = String(v);
   }
+  if (planDoubleConfigured() && patchDouble(input) !== undefined) fields[PLAN_DOUBLE_FIELD_ID] = input.double ? "是" : "否";
   if (Object.keys(fields).length === 0) return;
   await ragicUpdate("plan", id, fields);
 }

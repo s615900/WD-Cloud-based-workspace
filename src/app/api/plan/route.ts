@@ -1,7 +1,7 @@
 // 預排班：查詢某月（?month=yyyy-MM）與批次新增。資料存在獨立的 Ragic 表，不進行事曆。
 import type { NextRequest } from "next/server";
 import { createPlan, listPlan } from "@/server/ragic/plan";
-import { templatePayConfigured } from "@/server/ragic/fields";
+import { planDoubleConfigured, templatePayConfigured } from "@/server/ragic/fields";
 import { findTemplateByCode } from "@/server/modules/roster";
 import { planNotConfiguredResponse, validNonNegative, validTime } from "@/server/modules/plan";
 import { DATE_RE } from "@/server/modules/dates";
@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     return json({
       entries: month ? all.filter((e) => e.date.startsWith(month)) : all,
       templatePay: templatePayConfigured(),
+      doublePay: planDoubleConfigured(),
     });
   } catch (err) {
     console.error("取得預排班失敗:", err);
@@ -37,6 +38,7 @@ interface PlanBody {
   breakMin?: unknown;
   rate?: unknown;
   note?: unknown;
+  double?: unknown;
 }
 
 export async function POST(req: Request) {
@@ -73,12 +75,14 @@ export async function POST(req: Request) {
   if (!validNonNegative(breakMin)) return json({ success: false, error: "breakMin 必須是 0 以上的數字" }, 400);
   if (!validNonNegative(rate)) return json({ success: false, error: "rate 必須是 0 以上的數字" }, 400);
   const note = typeof body.note === "string" ? body.note.trim() : "";
+  if (body.double !== undefined && typeof body.double !== "boolean") return json({ success: false, error: "double 必須是布林值" }, 400);
+  const double = body.double === true;
 
   try {
     const results: { date: string; id?: number; error?: string }[] = [];
     await runWithConcurrency(dates, 3, async (date) => {
       try {
-        const id = await createPlan({ date, name, start, end, breakMin, rate, note });
+        const id = await createPlan({ date, name, start, end, breakMin, rate, note, double });
         results.push({ date, id });
       } catch (err) {
         results.push({ date, error: errorMessage(err, "建立失敗") });

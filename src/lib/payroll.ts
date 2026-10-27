@@ -1,12 +1,13 @@
 // 預排班的工時與薪資計算（純函式，前後端共用，有單元測試 payroll.test.ts）。
 // 規則：工時 = 結束 − 開始（結束 ≤ 開始視為跨日，例如 22:00–06:00）− 不計薪的休息分鐘；
-// 薪資 = 計薪分鐘 ÷ 60 × 時薪，每筆班四捨五入到整數元，月薪資是各筆加總（跟薪資單逐筆對得起來）。
+// 薪資 = 計薪分鐘 ÷ 60 × 時薪（雙倍日 ×2），每筆班四捨五入到整數元，月薪資是各筆加總（跟薪資單逐筆對得起來）。
 
 export interface PayrollShift {
   start: string; // HH:mm
   end: string; // HH:mm
   breakMin: number;
   rate: number;
+  double?: boolean; // 雙倍日：這班薪資 ×2（工時不變）
 }
 
 export function toMinutes(hhmm: string): number {
@@ -28,7 +29,7 @@ export function paidMinutes(shift: Pick<PayrollShift, "start" | "end" | "breakMi
 }
 
 export function shiftPay(shift: PayrollShift): number {
-  return Math.round((paidMinutes(shift) * (shift.rate || 0)) / 60);
+  return Math.round((paidMinutes(shift) * (shift.rate || 0) * (shift.double ? 2 : 1)) / 60);
 }
 
 // 分鐘 → 小時文字，最多兩位小數且去掉多餘的 0：450 → "7.5"、480 → "8"、400 → "6.67"

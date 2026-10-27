@@ -1,6 +1,9 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { FinanceView } from "./FinanceView";
 
-// 已併入人事財務表總頁
+export const metadata: Metadata = { title: "財務" };
+
+// 個人財務：導覽列獨立一項（原本在人事財務表的分頁裡）
 export default function FinancePage() {
-  redirect("/desktop/hr-finance?tab=finance");
+  return <FinanceView />;
 }

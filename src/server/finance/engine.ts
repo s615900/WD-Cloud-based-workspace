@@ -5,15 +5,19 @@
 import type {
   AccountItem,
   AccountWithBalance,
+  BudgetItem,
+  BudgetStatus,
   CardOverview,
   CardSetting,
   CategoryItem,
+  CategoryNature,
   DueItem,
   FinanceOverview,
   FinanceSettings,
   InstallmentItem,
   LoanItem,
   LoanView,
+  MonthlyPoint,
   PolicyItem,
   PolicyView,
   RateChangeItem,
@@ -22,7 +26,7 @@ import type {
   TransactionItem,
 } from "@/lib/financeTypes";
 import { computeBalances } from "./balance";
-import { addDaysYMD, daysBetween, eachDay } from "./dateUtil";
+import { addDaysYMD, addMonthsYM, daysBetween, eachDay } from "./dateUtil";
 import {
   getSettings,
   listCardSettings,
@@ -38,12 +42,13 @@ import { periodsPerYear, paymentDates } from "./insurance";
 import { buildSchedule, type LoanTerms } from "./loan";
 import { occursOn } from "./recurrence";
 import { cardLimits } from "./creditLimit";
-import { ACCOUNT_TYPE, INS_PAY_MODE, INST_STATUS, INS_STATUS, LOAN_STATUS, STMT_STATUS, TX_STATUS, TX_TYPE } from "./ragicFields";
-import { listAccounts, listCategories, listTransactions } from "./service";
+import { ACCOUNT_TYPE, BUDGET_ALL, CATEGORY_NATURE, INS_PAY_MODE, INST_STATUS, INS_STATUS, LOAN_STATUS, STMT_STATUS, TX_STATUS, TX_TYPE } from "./ragicFields";
+import { listAccounts, listBudgets, listCategories, listTransactions } from "./service";
 
 export interface FinanceContext {
   accounts: AccountItem[];
   categories: CategoryItem[];
+  budgets: BudgetItem[];
   txs: TransactionItem[];
   rules: RuleItem[];
   cards: CardSetting[];
@@ -56,9 +61,10 @@ export interface FinanceContext {
 }
 
 export async function loadContext(): Promise<FinanceContext> {
-  const [accounts, categories, txs, rules, cards, statements, instBases, loans, rateChanges, policies, settings] = await Promise.all([
+  const [accounts, categories, budgets, txs, rules, cards, statements, instBases, loans, rateChanges, policies, settings] = await Promise.all([
     listAccounts(),
     listCategories(),
+    listBudgets(),
     listTransactions(),
     listRules(),
     listCardSettings(),
@@ -73,6 +79,7 @@ export async function loadContext(): Promise<FinanceContext> {
   return {
     accounts,
     categories,
+    budgets,
     txs,
     rules,
     cards,
@@ -224,7 +231,8 @@ export function withBalances(ctx: FinanceContext): AccountWithBalance[] {
   return ctx.accounts.map((a) => ({ ...a, balance: balances.get(a.code) ?? a.openingBalance }));
 }
 
-export function monthSummary(txs: TransactionItem[], month: string) {
+export function monthSummary(txs: TransactionItem[], month: string, categories: CategoryItem[] = []) {
+  const natureOf = (name: string): CategoryNature => categories.find((c) => c.name === name)?.nature ?? CATEGORY_NATURE.彈性;
   let income = 0;
   let expense = 0;
   const byCategory = new Map<string, number>();
@@ -236,16 +244,45 @@ export function monthSummary(txs: TransactionItem[], month: string) {
       byCategory.set(t.category || "（未分類）", (byCategory.get(t.category || "（未分類）") ?? 0) + t.amount);
     }
   }
+  const expenseByCategory = [...byCategory.entries()]
+    .map(([category, amount]) => ({ category, amount, nature: natureOf(category) }))
+    .sort((a, b) => b.amount - a.amount);
+  const fixedExpense = expenseByCategory.filter((c) => c.nature === CATEGORY_NATURE.固定).reduce((sum, c) => sum + c.amount, 0);
   return {
     summary: { income, expense, net: income - expense },
-    expenseByCategory: [...byCategory.entries()].map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount),
+    expenseByCategory,
+    fixedExpense,
+    flexExpense: expense - fixedExpense,
   };
+}
+
+// 本月預算使用狀況：「全部」排第一，其餘照支出金額由大到小
+export function budgetStatuses(budgets: BudgetItem[], totalExpense: number, byCategory: { category: string; amount: number }[]): BudgetStatus[] {
+  const list = budgets.map((b) => {
+    const spent = b.target === BUDGET_ALL ? totalExpense : (byCategory.find((c) => c.category === b.target)?.amount ?? 0);
+    return { target: b.target, limit: b.limit, spent, remaining: b.limit - spent };
+  });
+  return list.sort((x, y) => (x.target === BUDGET_ALL ? -1 : y.target === BUDGET_ALL ? 1 : y.spent - x.spent));
+}
+
+// 近 N 個月（含本月）每月已入帳的收入與支出，舊→新；沒有明細的月份補 0
+export function monthlySeries(txs: TransactionItem[], month: string, count = 12): MonthlyPoint[] {
+  const points = Array.from({ length: count }, (_, i) => ({ month: addMonthsYM(month, i - (count - 1)), income: 0, expense: 0 }));
+  const byMonth = new Map(points.map((p) => [p.month, p]));
+  for (const t of txs) {
+    if (t.status !== TX_STATUS.已入帳) continue;
+    const p = byMonth.get(t.date.slice(0, 7));
+    if (!p) continue;
+    if (t.type === TX_TYPE.收入) p.income += t.amount;
+    if (t.type === TX_TYPE.支出) p.expense += t.amount;
+  }
+  return points;
 }
 
 export function buildOverview(ctx: FinanceContext, today: string): FinanceOverview {
   const month = today.slice(0, 7);
   const accounts = withBalances(ctx);
-  const { summary, expenseByCategory } = monthSummary(ctx.txs, month);
+  const { summary, expenseByCategory, fixedExpense, flexExpense } = monthSummary(ctx.txs, month, ctx.categories);
 
   // 額度按機構共用：同一家機構的卡合併算（含進行中分期的剩餘金額）
   const limits = cardLimits(
@@ -281,6 +318,10 @@ export function buildOverview(ctx: FinanceContext, today: string): FinanceOvervi
     month,
     summary,
     expenseByCategory,
+    fixedExpense,
+    flexExpense,
+    budgets: budgetStatuses(ctx.budgets, summary.expense, expenseByCategory),
+    monthly: monthlySeries(ctx.txs, month),
     dues: computeDues(ctx, today, 30),
     cards,
     loans,

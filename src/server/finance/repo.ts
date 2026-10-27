@@ -4,6 +4,7 @@
 import type {
   AccountItem,
   AccountType,
+  BudgetItem,
   CategoryItem,
   CategoryKind,
   TransactionItem,
@@ -14,7 +15,7 @@ import type {
 import { str } from "@/server/modules/dates";
 import { normalizeRagicDate } from "./dateUtil";
 import { finList, type FinanceRecord } from "./ragic";
-import { F1, F2, F3, F5, isYes } from "./ragicFields";
+import { CATEGORY_NATURE, F1, F11, F2, F3, F5, isYes } from "./ragicFields";
 
 function num(v: unknown): number {
   const n = Number(str(v).replaceAll(",", ""));
@@ -48,6 +49,7 @@ export function toCategory(id: string, rec: FinanceRecord): CategoryItem {
     id,
     name: c(rec, "分類名稱"),
     kind: c(rec, "收支別") as CategoryKind,
+    nature: c(rec, "支出性質") === CATEGORY_NATURE.固定 ? CATEGORY_NATURE.固定 : CATEGORY_NATURE.彈性,
     color: c(rec, "顏色"),
     order: num(rec["排序" satisfies keyof typeof F2]),
     active: isYes(rec["啟用" satisfies keyof typeof F2]),
@@ -103,4 +105,15 @@ export async function listCardClosingDays(): Promise<Map<string, number>> {
     if (code && day >= 1 && day <= 31) map.set(code, day);
   }
   return map;
+}
+
+export async function listBudgets(): Promise<BudgetItem[]> {
+  const rows = await finList("F11_BUDGET");
+  return rows
+    .map((r) => ({
+      id: r.id,
+      target: str(r.rec["預算對象" satisfies keyof typeof F11]).trim(),
+      limit: num(r.rec["每月預算" satisfies keyof typeof F11]),
+    }))
+    .filter((b) => b.target && b.limit > 0);
 }

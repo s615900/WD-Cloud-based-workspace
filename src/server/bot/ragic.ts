@@ -23,7 +23,14 @@ const FIELD_ID = {
   // 待辦的到期日（Ragic 日期欄位）。要先在 Ragic 待辦表（/ragicforms21/1）新增「到期日」日期欄位，
   // 再把欄位編號填在這裡；空字串＝尚未設定，所有讀寫到期日的地方都會略過或回報尚未設定。
   到期日: "1001486",
+  // 待辦的釘選（下拉選單 是／否）。要先在 Ragic 待辦表（/ragicforms21/1）新增「釘選」欄位，
+  // 再把欄位編號填在這裡；空字串＝尚未設定，所有讀寫釘選的地方都會略過或回報尚未設定。
+  釘選: "1001643",
 } as const;
+
+export function pinConfigured(): boolean {
+  return (FIELD_ID.釘選 as string) !== "";
+}
 
 export function dueDateConfigured(): boolean {
   return (FIELD_ID.到期日 as string) !== "";
@@ -105,6 +112,10 @@ export async function saveRecordToRagic(
     body.set(FIELD_ID.到期日, toSlash(record.dueDate));
   }
 
+  if (record.pinned && pinConfigured()) {
+    body.set(FIELD_ID.釘選, "是");
+  }
+
   const defaultStatus = DEFAULT_STATUS_BY_TYPE[record.type];
   if (defaultStatus) {
     body.set(FIELD_ID.狀態, defaultStatus);
@@ -128,6 +139,7 @@ export async function saveRecordToRagic(
 // 截止日期空白視為永不過期（沿用舊資料的既有顯示行為，不因為這次改動突然全部隱藏）；
 // 這裡只是查詢層的顯示過濾，Ragic 資料庫裡的紀錄完全不受影響、不會被刪除。
 function isRecordActive(r: RagicRecord): boolean {
+  if (r["釘選"] === "是") return true; // 釘選的待辦不套用自動隱藏
   const deadline = r["截止日期"]?.trim();
   if (!deadline) return true;
   return getTodayYMD() <= deadline.replaceAll("/", "-");
@@ -314,6 +326,8 @@ export interface TaskListItem {
   recordId: number;
   // 待辦的到期日（yyyy-MM-dd）；行程與沒設定的待辦是 null
   dueDate?: string | null;
+  // 待辦是否釘選（沒有釘選欄位或沒釘＝false）
+  pinned?: boolean;
   // 行程專用：完整日期（yyyy-MM-dd）與結束時間（HH:mm），編輯彈窗要用
   isoDate?: string;
   endTime?: string;
@@ -337,6 +351,7 @@ function toTaskListItem(r: RagicRecord): TaskListItem {
     createdAt: r["建立時間"],
     source: "todo",
     dueDate: r["到期日"]?.trim() ? r["到期日"].trim().replaceAll("/", "-") : null,
+    pinned: r["釘選"] === "是",
     sheetId: "/ragicforms21/1",
     recordId: r["_ragicId"],
   };
@@ -401,7 +416,7 @@ export async function queryTasksForApi(opts: {
     items = items.concat(filtered.map(toTaskListItem));
   }
 
-  return items.sort((a, b) => taskSortTimestamp(b) - taskSortTimestamp(a));
+  return items.sort((a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false) || taskSortTimestamp(b) - taskSortTimestamp(a));
 }
 
 // 更新單筆待辦（/ragicforms21/1）：狀態、到期日、內容可以只改其中一個。
@@ -410,7 +425,7 @@ export async function queryTasksForApi(opts: {
 // Ragic 更新單筆紀錄的網址規則：在原本的表單網址後面加上 /<紀錄編號>
 export async function updateTaskInRagic(
   ragicId: number | string,
-  changes: { status?: string; dueDate?: string; content?: string },
+  changes: { status?: string; dueDate?: string; content?: string; pinned?: boolean },
   existingDeadline = "",
 ): Promise<unknown> {
   const base = getEnv("RAGIC_BASE_URL");
@@ -420,6 +435,7 @@ export async function updateTaskInRagic(
   const body = new URLSearchParams();
   if (changes.status !== undefined) body.set(FIELD_ID.狀態, changes.status);
   if (changes.content !== undefined) body.set(FIELD_ID.內容文字, changes.content);
+  if (changes.pinned !== undefined && pinConfigured()) body.set(FIELD_ID.釘選, changes.pinned ? "是" : "否");
   if (changes.dueDate !== undefined) {
     body.set(FIELD_ID.到期日, changes.dueDate ? toSlash(changes.dueDate) : "");
     if (changes.dueDate && existingDeadline) {

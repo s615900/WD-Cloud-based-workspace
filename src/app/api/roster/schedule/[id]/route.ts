@@ -57,6 +57,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (typeof body.location !== "string") return json({ success: false, error: "location 必須是字串" }, 400);
     update.location = body.location;
   }
+  for (const key of ["countdown", "yearly"] as const) {
+    if (body[key] === undefined) continue;
+    if (typeof body[key] !== "boolean") return json({ success: false, error: `${key} 必須是布林值` }, 400);
+    update[key] = body[key];
+  }
   if (body.note !== undefined) {
     if (typeof body.note !== "string") return json({ success: false, error: "note 必須是字串" }, 400);
     update.note = body.note;

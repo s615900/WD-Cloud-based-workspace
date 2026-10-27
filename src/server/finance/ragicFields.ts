@@ -22,6 +22,7 @@ export const FINANCE_SHEETS = {
   F8B_RATE_CHANGE: "/personal-finance-module/10",
   F9_INSURANCE: "/personal-finance-module/11",
   F10_SETTINGS: "/personal-finance-module/12",
+  F11_BUDGET: "/personal-finance-module/13",
 } as const;
 
 export type FinanceSheet = keyof typeof FINANCE_SHEETS;
@@ -45,10 +46,18 @@ export const F1 = {
 export const F2 = {
   分類名稱: 1001528,
   收支別: 1001529,
+  支出性質: 1001630,
   顏色: 1001530,
   排序: 1001531,
   啟用: 1001532,
 } as const;
+
+// F11 預算：預算對象填分類名稱，「全部」＝整體預算；每月預算沒有紀錄＝不設限
+export const F11 = {
+  預算對象: 1001631,
+  每月預算: 1001632,
+} as const;
+export const BUDGET_ALL = "全部";
 
 export const F3 = {
   明細編號: 1001513,
@@ -98,6 +107,10 @@ export const ACCOUNT_TYPE = {
 } as const;
 // F2 收支別（只有收入／支出，沒有轉帳）
 export const CATEGORY_KIND = { 收入: "收入", 支出: "支出" } as const;
+
+// F2 支出性質（只對支出分類有意義；空白視為彈性）
+export const CATEGORY_NATURE = { 固定: "固定", 彈性: "彈性" } as const;
+export type CategoryNature = (typeof CATEGORY_NATURE)[keyof typeof CATEGORY_NATURE];
 
 export type TxType = (typeof TX_TYPE)[keyof typeof TX_TYPE];
 export type TxStatus = (typeof TX_STATUS)[keyof typeof TX_STATUS];

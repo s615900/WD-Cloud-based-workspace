@@ -7,9 +7,17 @@ import { apiFetch, errorText, sendJson } from "@/lib/client";
 import { useHideDone } from "@/lib/taskPrefs";
 import type { TaskListItem } from "@/lib/types";
 import { EditEntryForm } from "../calendar/EditEntryForm";
+import { CountdownCard } from "../CountdownCard";
 
 // 「備忘」是內部沿用的類型值，顯示給使用者看的文字一律用「待辦」
 const labelForType = (type: string) => (type === "備忘" ? "待辦" : type);
+
+// 清單顯示用：多行內容只顯示第一行當標題（去掉開頭的 # > - 符號）
+const titleOf = (content: string) => {
+  const lines = content.split("\n");
+  const first = (lines[0] ?? "").replace(/^\s*(#{1,3}\s+|>\s?|[-*]\s+)/, "");
+  return lines.length > 1 ? `${first} …` : first;
+};
 
 type Rows = { status: "loading" } | { status: "error"; message: string } | { status: "ok"; tasks: TaskListItem[] };
 
@@ -20,6 +28,7 @@ export function TasksView() {
   const [keyword, setKeyword] = useState("");
   const [appliedKeyword, setAppliedKeyword] = useState("");
   const [editing, setEditing] = useState<TaskListItem | null>(null);
+  const [creating, setCreating] = useState(false);
   const hideDone = useHideDone();
   const [toggleError, setToggleError] = useState("");
   // 篩選條件或 reloadCount 改變就重新查詢；結果帶著查詢當下的 key，key 對不上就視為載入中
@@ -53,6 +62,17 @@ export function TasksView() {
     }
   }
 
+  // 釘選／取消釘選（只有待辦，行程沒有）
+  async function togglePin(t: TaskListItem) {
+    setToggleError("");
+    try {
+      await sendJson(`/api/tasks/${t.id}`, "PATCH", { pinned: !t.pinned, source: "todo" });
+      setReloadCount((n) => n + 1);
+    } catch (err) {
+      setToggleError(errorText(err, "釘選失敗"));
+    }
+  }
+
   // 行程（/ragicforms21/8）與待辦（/ragicforms21/1）都開各自的編輯彈窗。
   // 推播通知帶 ?id=123&src=todo|schedule：資料載入後自動開啟那一筆（只開一次）
   const deepLinkDone = useRef(false);
@@ -75,6 +95,16 @@ export function TasksView() {
   return (
     <>
       <PageHeader title="待辦事項" subtitle="個人行程／待辦的完整清單，跟 LINE Bot 任務資料庫一致" />
+
+      <div className="mb-5">
+        <CountdownCard />
+      </div>
+
+      <div className="mb-3 flex justify-end">
+        <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+          + 新增待辦
+        </button>
+      </div>
 
       <div className="card mb-5">
         <div className="grid grid-cols-2 items-end gap-3 md:flex md:flex-wrap md:gap-4">
@@ -147,7 +177,10 @@ export function TasksView() {
                 <span className={`badge ${t.type === "行程" ? "badge-teal" : "badge-muted"}`}>{labelForType(t.type)}</span>
                 <DoneButton task={t} onToggle={toggleDone} className="ml-auto" />
               </div>
-              <div className="font-semibold">{t.content}</div>
+              <div className="font-semibold">
+                {t.pinned ? "📌 " : ""}
+                {titleOf(t.content)}
+              </div>
               <div className="mt-1 text-xs text-muted">
                 {t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : "（未排定）"}　建立 {t.createdAt}{t.dueDate ? `　到期 ${t.dueDate}` : ""}
               </div>
@@ -186,13 +219,30 @@ export function TasksView() {
                   <td>
                     <span className={`badge ${t.type === "行程" ? "badge-teal" : "badge-muted"}`}>{labelForType(t.type)}</span>
                   </td>
-                  <td>{t.content}</td>
+                  <td>
+                    {t.pinned ? "📌 " : ""}
+                    {titleOf(t.content)}
+                  </td>
                   <td className="whitespace-nowrap">
                     {t.date ? `${t.date}${t.time ? ` ${t.time}` : ""}` : t.dueDate ? `到期 ${t.dueDate}` : "（未排定）"}
                   </td>
                   <td className="form-hint whitespace-nowrap">{t.createdAt}</td>
                   <td className="whitespace-nowrap">
                     <DoneButton task={t} onToggle={toggleDone} />{" "}
+                    {t.source !== "schedule" && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void togglePin(t);
+                          }}
+                        >
+                          {t.pinned ? "取消釘選" : "📌 釘選"}
+                        </button>{" "}
+                      </>
+                    )}
                     <button type="button" className="btn btn-outline btn-sm">
                       編輯
                     </button>
@@ -204,6 +254,16 @@ export function TasksView() {
         </table>
       </div>
 
+      {creating && (
+        <EditTaskModal
+          task={null}
+          onClose={() => setCreating(false)}
+          onSaved={() => {
+            setCreating(false);
+            setReloadCount((n) => n + 1);
+          }}
+        />
+      )}
       {editing?.source === "schedule" && (
         <EditScheduleModal
           task={editing}
@@ -247,10 +307,12 @@ function DoneButton({ task, onToggle, className = "" }: { task: TaskListItem; on
   );
 }
 
-function EditTaskModal({ task, onClose, onSaved }: { task: TaskListItem; onClose: () => void; onSaved: () => void }) {
-  const [status, setStatus] = useState(task.status === "完成" ? "完成" : "準備中");
-  const [content, setContent] = useState(task.content);
-  const [dueDate, setDueDate] = useState(task.dueDate ?? "");
+// task 為 null＝新增待辦；有值＝編輯原有的待辦（原本的欄位與儲存行為不變，多了釘選）
+function EditTaskModal({ task, onClose, onSaved }: { task: TaskListItem | null; onClose: () => void; onSaved: () => void }) {
+  const [status, setStatus] = useState(task?.status === "完成" ? "完成" : "準備中");
+  const [content, setContent] = useState(task?.content ?? "");
+  const [dueDate, setDueDate] = useState(task?.dueDate ?? "");
+  const [pinned, setPinned] = useState(task?.pinned ?? false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<MessageState>({ text: "" });
 
@@ -263,15 +325,26 @@ function EditTaskModal({ task, onClose, onSaved }: { task: TaskListItem; onClose
     setSaving(true);
     setMessage({ text: "儲存中…" });
     try {
-      // 到期日沒改就不送，避免 Ragic 還沒建「到期日」欄位時連狀態都存不了
-      const dueChanged = dueDate !== (task.dueDate ?? "");
-      const contentChanged = content.trim() !== task.content;
-      await sendJson(`/api/tasks/${task.id}`, "PATCH", {
-        status,
-        source: "todo",
-        ...(contentChanged ? { content: content.trim() } : {}),
-        ...(dueChanged ? { dueDate } : {}),
-      });
+      if (!task) {
+        await sendJson("/api/tasks", "POST", {
+          type: "備忘",
+          content: content.trim(),
+          ...(dueDate ? { dueDate } : {}),
+          ...(pinned ? { pinned: true } : {}),
+        });
+      } else {
+        // 到期日沒改就不送，避免 Ragic 還沒建「到期日」欄位時連狀態都存不了；釘選同理
+        const dueChanged = dueDate !== (task.dueDate ?? "");
+        const contentChanged = content.trim() !== task.content;
+        const pinChanged = pinned !== (task.pinned ?? false);
+        await sendJson(`/api/tasks/${task.id}`, "PATCH", {
+          status,
+          source: "todo",
+          ...(contentChanged ? { content: content.trim() } : {}),
+          ...(dueChanged ? { dueDate } : {}),
+          ...(pinChanged ? { pinned } : {}),
+        });
+      }
       onSaved();
     } catch (err) {
       setMessage({ text: errorText(err, "儲存失敗"), kind: "error" });
@@ -280,32 +353,48 @@ function EditTaskModal({ task, onClose, onSaved }: { task: TaskListItem; onClose
   }
 
   return (
-    <Modal open onClose={onClose} title="編輯待辦事項">
+    <Modal open onClose={onClose} title={task ? "編輯待辦事項" : "新增待辦事項"}>
       <form onSubmit={save}>
         <div className="form-grid">
-          <div className="form-field">
-            <label>類型</label>
-            <p>{labelForType(task.type)}</p>
-          </div>
-          <div className="form-field">
-            <label>建立時間</label>
-            <p>{task.createdAt}</p>
-          </div>
+          {task && (
+            <>
+              <div className="form-field">
+                <label>類型</label>
+                <p>{labelForType(task.type)}</p>
+              </div>
+              <div className="form-field">
+                <label>建立時間</label>
+                <p>{task.createdAt}</p>
+              </div>
+            </>
+          )}
           <div className="form-field sm:col-span-2">
             <label htmlFor="task-content">內容</label>
-            <textarea id="task-content" className="input" rows={3} value={content} onChange={(e) => setContent(e.target.value)} />
+            <textarea
+              id="task-content"
+              className="input"
+              rows={task ? 3 : 6}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
           </div>
-          <div className="form-field sm:col-span-2">
-            <label>狀態</label>
-            <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="準備中">準備中</option>
-              <option value="完成">完成</option>
-            </select>
-          </div>
+          {task && (
+            <div className="form-field sm:col-span-2">
+              <label>狀態</label>
+              <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="準備中">準備中</option>
+                <option value="完成">完成</option>
+              </select>
+            </div>
+          )}
           <div className="form-field sm:col-span-2">
             <label htmlFor="task-due">到期日（選填，到期當天早上 9 點推播提醒）</label>
             <input id="task-due" type="date" className="input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </div>
+          <label className="form-field sm:col-span-2 flex items-center gap-2">
+            <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
+            📌 釘選（排在最上面，也不會被 14 天自動隱藏）
+          </label>
         </div>
         <Message state={message} />
         <ModalActions>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MonthPicker } from "@/components/MonthPicker";
 import { addMonths, apiFetch, currentMonth, errorText, sendJson, todayISO } from "@/lib/client";
 import type { AccountWithBalance, CategoryItem, TransactionItem, TransactionList, TxType } from "@/lib/financeTypes";
 import { TX_SOURCE, TX_STATUS, TX_TYPE } from "@/server/finance/ragicFields";
@@ -80,6 +81,7 @@ export function TransactionsTab({
         <span className={s.monthLabel} data-testid="month-label">
           {month}
         </span>
+        <MonthPicker value={month} onChange={setMonth} className={s.select} />
         <button className={s.btn} onClick={() => setMonth(currentMonth())}>
           本月
         </button>

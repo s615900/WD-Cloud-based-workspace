@@ -140,6 +140,8 @@ export interface TaskListItem {
   source?: "todo" | "schedule";
   // 待辦的到期日（yyyy-MM-dd），沒設定是 null；只有待辦（source: "todo"）會有
   dueDate?: string | null;
+  // 待辦是否釘選（桌面版待辦頁用）
+  pinned?: boolean;
   // 行程專用：完整日期（yyyy-MM-dd）與結束時間（HH:mm）
   isoDate?: string;
   endTime?: string;
@@ -178,6 +180,8 @@ export interface RosterEntry {
   kind: string;
   color: string;
   batchId: string;
+  countdown?: boolean; // 列入倒數日
+  yearly?: boolean; // 倒數日每年重複
 }
 
 export interface RosterConfig {
@@ -233,4 +237,5 @@ export interface PlanEntry {
   breakMin: number;
   rate: number;
   note: string;
+  double?: boolean; // 「這天雙倍」：這班薪資算兩倍
 }

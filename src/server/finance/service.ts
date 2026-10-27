@@ -8,6 +8,9 @@ import { finCreate, finDelete, finList, finUpdate, isRecordId, whereClause, type
 import {
   ACCOUNT_TYPE,
   CATEGORY_KIND,
+  BUDGET_ALL,
+  CATEGORY_NATURE,
+  F11,
   F1,
   F2,
   F3,
@@ -18,7 +21,7 @@ import {
   TX_TYPE,
   type TxType,
 } from "./ragicFields";
-import { listAccounts, listCardClosingDays, listCategories, listTransactions, toTransaction } from "./repo";
+import { listAccounts, listBudgets, listCardClosingDays, listCategories, listTransactions, toTransaction } from "./repo";
 
 export class FinanceError extends Error {
   constructor(
@@ -41,6 +44,7 @@ export const isOneOf = <T extends string>(set: Record<string, T>, v: string): v 
 export interface CategoryBody {
   name?: unknown;
   kind?: unknown;
+  nature?: unknown;
   color?: unknown;
   order?: unknown;
   active?: unknown;
@@ -57,6 +61,8 @@ export async function createCategory(body: CategoryBody): Promise<number> {
   const kind = str(body.kind);
   if (!name) fail("請輸入分類名稱");
   if (!isOneOf(CATEGORY_KIND, kind)) fail("收支別必須是收入或支出");
+  const nature = has(body, "nature") ? str(body.nature) : CATEGORY_NATURE.彈性;
+  if (!isOneOf(CATEGORY_NATURE, nature)) fail("支出性質必須是固定或彈性");
 
   const existing = await listCategories();
   if (existing.some((c) => c.name === name)) fail(`分類「${name}」已存在`);
@@ -65,6 +71,8 @@ export async function createCategory(body: CategoryBody): Promise<number> {
   return finCreate("F2_CATEGORY", {
     [F2.分類名稱]: name,
     [F2.收支別]: kind,
+    // 收入分類沒有固定／彈性之分，留空
+    [F2.支出性質]: kind === CATEGORY_KIND.支出 ? nature : "",
     [F2.顏色]: str(body.color),
     [F2.排序]: order,
     [F2.啟用]: body.active === false ? CHECK_OFF : CHECK_ON,
@@ -97,6 +105,11 @@ export async function updateCategory(recordId: string, body: CategoryBody): Prom
       fields[F2.收支別] = kind;
     }
   }
+  if (has(body, "nature")) {
+    const nature = str(body.nature);
+    if (!isOneOf(CATEGORY_NATURE, nature)) fail("支出性質必須是固定或彈性");
+    fields[F2.支出性質] = nature;
+  }
   if (has(body, "color")) fields[F2.顏色] = str(body.color);
   if (has(body, "order")) fields[F2.排序] = parseOrder(body.order);
   if (has(body, "active")) fields[F2.啟用] = body.active ? CHECK_ON : CHECK_OFF;
@@ -105,6 +118,7 @@ export async function updateCategory(recordId: string, body: CategoryBody): Prom
 }
 
 // 預設分類。收入、支出各有一個「其他」，名稱分開避免同名衝突。排序 10、20、30…
+const FIXED_SEED = new Set(["居住", "通訊", "保險", "貸款還款"]);
 const SEED_CATEGORIES: { name: string; kind: CategoryItem["kind"] }[] = [
   ...["薪資", "接案", "獎金", "退款", "其他收入"].map((name) => ({ name, kind: CATEGORY_KIND.收入 })),
   ...["餐飲", "交通", "居住", "通訊", "器材", "保險", "貸款還款", "手續費利息", "醫療", "娛樂", "其他支出"].map((name) => ({
@@ -128,12 +142,37 @@ export async function seedCategories(dryRun: boolean): Promise<SeedResult> {
       await finCreate("F2_CATEGORY", {
         [F2.分類名稱]: cat.name,
         [F2.收支別]: cat.kind,
+        [F2.支出性質]: cat.kind === CATEGORY_KIND.支出 ? (FIXED_SEED.has(cat.name) ? CATEGORY_NATURE.固定 : CATEGORY_NATURE.彈性) : "",
         [F2.排序]: (i + 1) * 10,
         [F2.啟用]: CHECK_ON,
       });
     }
   }
   return { success: true, dryRun, toCreate, skipped };
+}
+
+// ── 預算 ──────────────────────────────────────────────────────
+
+// 設定某個對象（分類或「全部」）的每月預算；金額留空或 0＝取消預算（刪除紀錄）
+export async function setBudget(body: { target?: unknown; amount?: unknown }): Promise<void> {
+  const target = str(body.target).trim();
+  if (!target) fail("請選擇預算對象");
+  if (target !== BUDGET_ALL) {
+    const cat = (await listCategories()).find((c) => c.name === target);
+    if (!cat || cat.kind !== CATEGORY_KIND.支出) fail("預算對象必須是「全部」或存在的支出分類");
+  }
+  const raw = str(body.amount).trim();
+  const amount = raw === "" ? 0 : Number(raw);
+  if (!Number.isInteger(amount) || amount < 0) fail("預算金額必須是 0 或正整數");
+
+  const current = (await listBudgets()).find((b) => b.target === target);
+  if (amount === 0) {
+    if (current) await finDelete("F11_BUDGET", current.id);
+  } else if (current) {
+    await finUpdate("F11_BUDGET", current.id, { [F11.每月預算]: amount });
+  } else {
+    await finCreate("F11_BUDGET", { [F11.預算對象]: target, [F11.每月預算]: amount });
+  }
 }
 
 // ── 帳戶 ──────────────────────────────────────────────────────
@@ -409,7 +448,7 @@ export async function deleteTransaction(recordId: string): Promise<void> {
   await finDelete("F3_TRANSACTION", recordId);
 }
 
-export { isRecordId, listAccounts, listCategories, listTransactions };
+export { isRecordId, listBudgets, listAccounts, listCategories, listTransactions };
 
 // 預定 → 已入帳（排程產生的「預定」明細，確認後才計入餘額）
 export async function confirmTransaction(recordId: string): Promise<void> {

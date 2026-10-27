@@ -83,6 +83,21 @@ export function monthCells(month: string): (string | null)[] {
   return cells;
 }
 
+// 月曆格子（補滿整週）：前面用上個月月底、後面用下個月月初的日期補滿，outside＝不是這個月的日期。
+// 月曆畫面用這個，空白格就能淡淡顯示相鄰月份的行程或班別。
+export function monthCellsPadded(month: string): { date: string; outside: boolean }[] {
+  const inMonth = monthCells(month).filter((d): d is string => d !== null);
+  const lead = monthCells(month).findIndex((d) => d !== null);
+  const trail = (7 - ((lead + inMonth.length) % 7)) % 7;
+  const first = inMonth[0]!;
+  const last = inMonth[inMonth.length - 1]!;
+  return [
+    ...Array.from({ length: lead }, (_, i) => ({ date: addDays(first, i - lead), outside: true })),
+    ...inMonth.map((date) => ({ date, outside: false })),
+    ...Array.from({ length: trail }, (_, i) => ({ date: addDays(last, i + 1), outside: true })),
+  ];
+}
+
 export function formatCurrency(n: unknown): string {
   const rounded = Math.round((Number(n) || 0) * 100) / 100;
   return "$" + rounded.toLocaleString("en-US");

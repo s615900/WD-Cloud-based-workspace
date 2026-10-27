@@ -40,7 +40,7 @@ function mmddToIsoDate(mmdd: string): string | null {
 }
 
 export async function POST(req: Request) {
-  const body = await readBody<{ type?: unknown; content?: unknown; date?: unknown; time?: unknown; dueDate?: unknown }>(req);
+  const body = await readBody<{ type?: unknown; content?: unknown; date?: unknown; time?: unknown; dueDate?: unknown; pinned?: unknown }>(req);
 
   if (!isValidTaskType(body.type)) {
     return json({ success: false, error: "type 必須是 行程 或 備忘" }, 400);
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
     if (body.dueDate !== undefined && (typeof body.dueDate !== "string" || (body.dueDate !== "" && !DATE_RE.test(body.dueDate)))) {
       return json({ success: false, error: "dueDate 格式須為 yyyy-MM-dd" }, 400);
     }
-    await saveRecordToRagic(userId, { type: body.type, content: title, dueDate: body.dueDate || undefined });
+    await saveRecordToRagic(userId, { type: body.type, content: title, dueDate: body.dueDate || undefined, pinned: body.pinned === true });
     return json({ success: true });
   } catch (err) {
     console.error("新增事項存檔失敗:", err);

@@ -57,6 +57,8 @@ export interface BotRecord {
   matched?: boolean;
   // 到期日（yyyy-MM-dd），只有桌面版新增待辦時會帶
   dueDate?: string;
+  // 桌面版新增待辦時可帶：釘選
+  pinned?: boolean;
 }
 
 export interface RagicRecord {
@@ -67,6 +69,7 @@ export interface RagicRecord {
   建立時間: string;
   截止日期: string;
   到期日?: string;
+  釘選?: string; // 「是」＝釘選（桌面版待辦頁用；Ragic 還沒建欄位時不存在）
   預約人姓名?: string;
   預約狀態?: string;
   預約時間戳記?: string;

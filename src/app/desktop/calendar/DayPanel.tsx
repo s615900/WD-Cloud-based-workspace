@@ -73,7 +73,7 @@ export function DayPanel({ date, version, onChanged }: { date: string; version: 
             editingId === e.id ? (
               <div key={e.id} className="mb-2 rounded-[9px] border border-line px-2.5 py-2">
                 <EditEntryForm
-                  entry={{ id: e.id, title: e.title, date: e.date, start: e.start, end: e.end, allDay: e.allDay }}
+                  entry={{ id: e.id, title: e.title, date: e.date, start: e.start, end: e.end, allDay: e.allDay, countdown: e.countdown ?? false, yearly: e.yearly ?? false }}
                   onCancel={() => setEditingId(null)}
                   onSaved={() => {
                     setEditingId(null);
@@ -84,7 +84,10 @@ export function DayPanel({ date, version, onChanged }: { date: string; version: 
             ) : (
             <div key={e.id} className="mb-2 rounded-[9px] border border-line px-2.5 py-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[13px] font-bold">{e.title}</span>
+                <span className="text-[13px] font-bold">
+                  {e.title}
+                  {e.countdown ? <span className="badge badge-gold ml-1.5">倒數{e.yearly ? "・每年" : ""}</span> : null}
+                </span>
                 <span className={`badge ${e.status === "取消" ? "badge-danger" : "badge-teal"}`}>{e.status}</span>
               </div>
               <div className="text-xs text-muted">{e.allDay ? "全天" : `${e.start} – ${e.end}`}</div>
@@ -141,6 +144,8 @@ function QuickAdd({ date, onAdded }: { date: string; onAdded: () => void }) {
   const [title, setTitle] = useState("");
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("10:00");
+  const [countdown, setCountdown] = useState(false);
+  const [yearly, setYearly] = useState(false);
   const [message, setMessage] = useState<MessageState>({ text: "" });
 
   async function add() {
@@ -149,8 +154,10 @@ function QuickAdd({ date, onAdded }: { date: string; onAdded: () => void }) {
       return;
     }
     try {
-      await sendJson("/api/roster/schedule", "POST", { date, title: title.trim(), start, end });
+      await sendJson("/api/roster/schedule", "POST", { date, title: title.trim(), start, end, countdown, yearly: countdown && yearly });
       setTitle("");
+      setCountdown(false);
+      setYearly(false);
       setMessage({ text: "" });
       onAdded();
     } catch (err) {
@@ -174,6 +181,18 @@ function QuickAdd({ date, onAdded }: { date: string; onAdded: () => void }) {
           <label>結束</label>
           <input className="input" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
         </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={countdown} onChange={(e) => setCountdown(e.target.checked)} />
+          加入倒數日
+        </label>
+        {countdown && (
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={yearly} onChange={(e) => setYearly(e.target.checked)} />
+            每年重複（國曆）
+          </label>
+        )}
       </div>
       <button type="button" className="btn btn-primary mt-3 w-full" onClick={add}>
         新增

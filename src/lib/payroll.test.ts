@@ -51,3 +51,16 @@ test("月彙總：依班別分組加總", () => {
     ],
   );
 });
+
+test("雙倍日：薪資 ×2，工時不變", () => {
+  const shift = { start: "09:00", end: "18:00", breakMin: 60, rate: 190, double: true };
+  assert.equal(shiftPay(shift), 3040);
+  assert.equal(paidMinutes(shift), 480);
+});
+
+test("雙倍日逐筆先 ×2 再四捨五入，彙總照加", () => {
+  const a = { start: "10:00", end: "16:40", breakMin: 0, rate: 183, double: true };
+  const b = { start: "10:00", end: "16:40", breakMin: 0, rate: 183 };
+  assert.equal(shiftPay(a), 2440);
+  assert.equal(summarize([a, b], () => ({ key: "k", label: "k" })).pay, 3660);
+});

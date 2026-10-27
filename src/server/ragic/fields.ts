@@ -15,6 +15,8 @@ export const SHEET = {
   freeslot: "/9",
   // 預排班（排班算時數／薪資用的草稿，不進行事曆）。路徑待 WD 建表後確認，見 docs/10
   plan: "/14",
+  // 薪資實領：每個「期別（yyyy-MM）＋班別」一筆實際領到的金額，用來跟預排班算出的薪資對帳
+  payslip: "/15",
 } as const;
 
 export const F_TEMPLATE = {
@@ -64,6 +66,11 @@ export const F_SCHEDULE = {
 // 填之前行程只會單向寫進 Google，不會回頭同步。
 export const SCHEDULE_GCAL_FIELD_ID: string = "1001629";
 
+// 行程表的「倒數日」「每年重複」欄位編號（下拉選單，選項 是／否）：行程標成倒數日後，
+// 首頁與待辦事項頁會顯示「還有 N 天」；每年重複只照國曆算。
+export const SCHEDULE_COUNTDOWN_FIELD_ID = "1001640";
+export const SCHEDULE_YEARLY_FIELD_ID = "1001641";
+
 // 空檔預約（/ragicforms21/9）。1001432 是 Ragic 自動編號欄位，絕不可寫入。
 export const F_FREESLOT = {
   id: 1001432,
@@ -104,8 +111,22 @@ export const F_PLAN = {
   note: 1001494,
 } as const;
 
+export const F_PAYSLIP = {
+  period: 1001636,
+  name: 1001637,
+  amount: 1001638,
+} as const;
+
 export function planConfigured(): boolean {
   return Object.values(F_PLAN).every((id) => id > 0);
+}
+
+// 預排班表的「雙倍」欄位編號（下拉選單，選項 是／否）：標記的班薪資算兩倍。
+// Ragic 建好欄位後把編號填在這裡，填之前讀回來一律是「否」、寫入時略過。
+export const PLAN_DOUBLE_FIELD_ID: string = "1001635";
+
+export function planDoubleConfigured(): boolean {
+  return PLAN_DOUBLE_FIELD_ID !== "";
 }
 
 export function templatePayConfigured(): boolean {

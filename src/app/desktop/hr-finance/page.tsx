@@ -1,21 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PlanView } from "../plan/PlanView";
 import { HrView } from "../hr/HrView";
-import { FinanceView } from "../finance/FinanceView";
 
 export const metadata: Metadata = { title: "人事財務表" };
 
-// 人事財務表總頁：預排班／財務／人事假勤放在同一頁用分頁切換，
-// 用 ?tab= 記住目前分頁（舊的 /desktop/plan、/hr、/finance 網址會導到這裡）。
+// 人事財務表總頁：預排班／人事假勤放在同一頁用分頁切換，用 ?tab= 記住目前分頁
+// （舊的 /desktop/plan、/hr 網址會導到這裡；財務已獨立成 /desktop/finance，舊的 ?tab=finance 會轉過去）。
 const TABS = [
   { key: "plan", label: "預排班", View: PlanView },
-  { key: "finance", label: "財務", View: FinanceView },
   { key: "hr", label: "人事假勤", View: HrView },
 ] as const;
 
 export default async function HrFinancePage({ searchParams }: PageProps<"/desktop/hr-finance">) {
   const { tab } = await searchParams;
+  if (tab === "finance") redirect("/desktop/finance");
   const current = TABS.find((t) => t.key === tab) ?? TABS[0];
   const View = current.View;
 

@@ -115,3 +115,25 @@
 .cardHead { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
 .inlineNote { color: var(--fin-muted); font-size: 13px; }
 @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+
+/* 每月收支圖 */
+.chartHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.chartTools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chartSep { width: 1px; height: 18px; background: var(--fin-line); margin: 0 4px; }
+.chartSvg { width: 100%; height: auto; display: block; }
+.chartGrid { stroke: var(--fin-line); stroke-width: 1; }
+.chartText { font-size: 11px; fill: var(--fin-muted); }
+.chartIncome { fill: var(--fin-income); background: var(--fin-income); }
+.chartExpense { fill: var(--fin-expense); background: var(--fin-expense); }
+.chartLineIncome { fill: none; stroke: var(--fin-income); stroke-width: 2; }
+.chartLineExpense { fill: none; stroke: var(--fin-expense); stroke-width: 2; }
+.chartLegend { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 12px; margin-top: 6px; }
+.chartLegend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+
+/* 固定 vs 彈性支出 */
+.splitBar { height: 12px; border-radius: 999px; background: #d97706; overflow: hidden; }
+.splitFixed { height: 100%; background: #475569; }
+.splitFlex { background: #d97706; }
+.splitLegend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; margin-top: 8px; }
+.splitLegend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+.barFixed { background: #475569; }

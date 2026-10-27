@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { apiFetch, errorText, sendJson, todayISO } from "@/lib/client";
-import type { AccountItem, AccountType, AccountWithBalance, CategoryItem, CategoryKind, SeedResult } from "@/lib/financeTypes";
-import { ACCOUNT_TYPE, CATEGORY_KIND } from "@/server/finance/ragicFields";
+import type { AccountItem, AccountType, AccountWithBalance, BudgetItem, CategoryItem, CategoryKind, CategoryNature, SeedResult } from "@/lib/financeTypes";
+import { ACCOUNT_TYPE, BUDGET_ALL, CATEGORY_KIND, CATEGORY_NATURE } from "@/server/finance/ragicFields";
 import s from "./finance.module.css";
 import { RulesPanel } from "./RulesPanel";
-import { DeleteButton, Field, FinModal, Msg, money } from "./shared";
+import { DeleteButton, Field, FinModal, Msg, money, useApi } from "./shared";
 
 export function SettingsTab({
   accounts,
@@ -103,6 +103,7 @@ export function SettingsTab({
               <tr>
                 <th>名稱</th>
                 <th>收支別</th>
+                <th>支出性質</th>
                 <th>排序</th>
                 <th>狀態</th>
                 <th />
@@ -111,7 +112,7 @@ export function SettingsTab({
             <tbody>
               {categories.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className={s.empty}>
+                  <td colSpan={6} className={s.empty}>
                     還沒有分類，可以按「建立預設分類」
                   </td>
                 </tr>
@@ -120,6 +121,7 @@ export function SettingsTab({
                   <tr key={c.id} data-testid={`cat-${c.name}`}>
                     <td>{c.name}</td>
                     <td>{c.kind}</td>
+                    <td>{c.kind === CATEGORY_KIND.支出 ? c.nature : <span className={s.muted}>—</span>}</td>
                     <td>{c.order}</td>
                     <td>{c.active ? "啟用" : <span className={s.muted}>停用</span>}</td>
                     <td className={s.right}>
@@ -134,6 +136,8 @@ export function SettingsTab({
           </table>
         </div>
       </div>
+
+      <BudgetPanel categories={categories} version={version} onChanged={onChanged} />
 
       <RulesPanel accounts={accounts} categories={categories} version={version} onChanged={onChanged} />
 
@@ -329,6 +333,7 @@ function CategoryForm({
 }) {
   const [name, setName] = useState(editing?.name ?? "");
   const [kind, setKind] = useState<CategoryKind>(editing?.kind ?? CATEGORY_KIND.支出);
+  const [nature, setNature] = useState<CategoryNature>(editing?.nature ?? CATEGORY_NATURE.彈性);
   const [order, setOrder] = useState(editing ? String(editing.order) : "");
   const [active, setActive] = useState(editing?.active ?? true);
   const [msg, setMsg] = useState("");
@@ -338,7 +343,7 @@ function CategoryForm({
     e.preventDefault();
     setSaving(true);
     setMsg("");
-    const body = { name, kind, order, active };
+    const body = { name, kind, nature, order, active };
     try {
       if (editing) await sendJson(`/api/finance/categories/${editing.id}`, "PATCH", body);
       else await sendJson("/api/finance/categories", "POST", body);
@@ -363,6 +368,14 @@ function CategoryForm({
             </select>
           </Field>
         </div>
+        {kind === CATEGORY_KIND.支出 ? (
+          <Field label="支出性質" hint="固定＝房租、訂閱這類每月差不多的花費；彈性＝可以省的花費">
+            <select className={s.select} value={nature} onChange={(e) => setNature(e.target.value as CategoryNature)} aria-label="支出性質">
+              <option value={CATEGORY_NATURE.固定}>{CATEGORY_NATURE.固定}</option>
+              <option value={CATEGORY_NATURE.彈性}>{CATEGORY_NATURE.彈性}</option>
+            </select>
+          </Field>
+        ) : null}
         <Field label="排序" hint="數字小的在前；新增時留空會排到最後">
           <input className={s.input} type="number" value={order} onChange={(e) => setOrder(e.target.value)} />
         </Field>
@@ -454,5 +467,77 @@ function SeedDialog({ onClose, onDone }: { onClose: () => void; onDone: () => vo
         </button>
       </div>
     </FinModal>
+  );
+}
+
+// 每月預算：每個支出分類（和「全部」）各一格，留空＝不設限
+function BudgetPanel({ categories, version, onChanged }: { categories: CategoryItem[]; version: number; onChanged: () => void }) {
+  const budgets = useApi<BudgetItem[]>("/api/finance/budgets", version);
+  const targets = [BUDGET_ALL, ...categories.filter((c) => c.active && c.kind === CATEGORY_KIND.支出).map((c) => c.name)];
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const saved = (t: string) => String(budgets.data?.find((b) => b.target === t)?.limit ?? "");
+
+  async function save(target: string) {
+    setBusy(target);
+    setMsg("");
+    try {
+      await sendJson("/api/finance/budgets", "POST", { target, amount: draft[target] ?? saved(target) });
+      setDraft((d) => {
+        const next = { ...d };
+        delete next[target];
+        return next;
+      });
+      budgets.reload();
+      onChanged();
+    } catch (err) {
+      setMsg(errorText(err, "儲存失敗"));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <div className={`${s.card} ${s.sectionGap}`}>
+      <h3 className={s.cardTitle}>每月預算</h3>
+      <p className={s.sub} style={{ marginTop: 0 }}>
+        每個月都用同一個上限；留空代表不設限。「全部」是整體預算。
+      </p>
+      <Msg text={msg} kind="error" />
+      <div className={s.tableWrap}>
+        <table className={s.table}>
+          <tbody>
+            {targets.map((t) => {
+              const value = draft[t] ?? saved(t);
+              const dirty = value !== saved(t);
+              return (
+                <tr key={t} data-testid={`budget-${t}`}>
+                  <td>{t === BUDGET_ALL ? <b>全部</b> : t}</td>
+                  <td>
+                    <input
+                      className={s.input}
+                      type="number"
+                      min={0}
+                      step={1}
+                      placeholder="不設限"
+                      value={value}
+                      onChange={(e) => setDraft((d) => ({ ...d, [t]: e.target.value }))}
+                      aria-label={`${t}每月預算`}
+                    />
+                  </td>
+                  <td className={s.right}>
+                    <button className={`${s.btn} ${s.btnSm}`} disabled={!dirty || busy === t} onClick={() => save(t)}>
+                      {busy === t ? "儲存中…" : "儲存"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

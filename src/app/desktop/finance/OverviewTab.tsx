@@ -3,6 +3,7 @@
 import type { AccountWithBalance, FinanceOverview } from "@/lib/financeTypes";
 import { ACCOUNT_TYPE } from "@/server/finance/ragicFields";
 import s from "./finance.module.css";
+import { MonthlyChart } from "./MonthlyChart";
 import { Msg, money, useApi } from "./shared";
 
 const KIND_ICON: Record<string, string> = { 卡費: "💳", 保費: "🛡️", 貸款: "🏦", 定期: "🔁", 待確認: "❓" };
@@ -42,7 +43,38 @@ export function OverviewTab({ accounts, version }: { accounts: AccountWithBalanc
       </div>
       {ov.error ? <Msg text={ov.error} kind="error" /> : null}
 
-      <div className={s.grid2}>
+      {d ? (
+        <div className={s.sectionGap}>
+          <MonthlyChart data={d.monthly} />
+        </div>
+      ) : null}
+
+      {d && d.budgets.length > 0 ? (
+        <div className={`${s.card} ${s.sectionGap}`} data-testid="ov-budgets">
+          <h3 className={s.cardTitle}>本月預算</h3>
+          {d.budgets.map((b) => {
+            const ratio = b.spent / b.limit;
+            return (
+              <div key={b.target} style={{ marginBottom: 12 }}>
+                <div className={s.balanceRow} style={{ border: 0, padding: 0 }}>
+                  <span>{b.target === "全部" ? <b>整體預算</b> : b.target}</span>
+                  <span className={s.mono}>
+                    {money(b.spent)} / {money(b.limit)}
+                    <span className={`${s.sub} ${b.remaining < 0 ? s.expense : ""}`}>
+                      　{b.remaining < 0 ? `超支 ${money(-b.remaining)}` : `剩 ${money(b.remaining)}`}
+                    </span>
+                  </span>
+                </div>
+                <div className={s.bar}>
+                  <div className={`${s.barFill} ${ratio > 1 ? s.barBad : ratio >= 0.8 ? s.barWarn : ""}`} style={{ width: `${Math.min(100, ratio * 100)}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div className={`${s.grid2} ${s.sectionGap}`}>
         <div className={s.card}>
           <h3 className={s.cardTitle}>30 天內待付款</h3>
           {!d ? (
@@ -89,23 +121,49 @@ export function OverviewTab({ accounts, version }: { accounts: AccountWithBalanc
 
       <div className={`${s.grid2} ${s.sectionGap}`}>
         <div className={s.card}>
-          <h3 className={s.cardTitle}>本月支出分類</h3>
+          <h3 className={s.cardTitle}>這個月花在哪</h3>
           {!d || d.expenseByCategory.length === 0 ? (
             <p className={s.muted}>本月還沒有支出。</p>
           ) : (
-            d.expenseByCategory.map((c) => (
-              <div key={c.category} style={{ marginBottom: 10 }}>
-                <div className={s.balanceRow} style={{ border: 0, padding: 0 }}>
-                  <span>{c.category}</span>
-                  <span className={s.mono}>
-                    {money(c.amount)} <span className={s.sub}>{((c.amount / Math.max(1, d.summary.expense)) * 100).toFixed(0)}%</span>
-                  </span>
-                </div>
-                <div className={s.bar}>
-                  <div className={s.barFill} style={{ width: `${(c.amount / maxCat) * 100}%` }} />
-                </div>
+            <>
+              <div className={s.splitBar} data-testid="ov-nature">
+                <div className={s.splitFixed} style={{ width: `${(d.fixedExpense / Math.max(1, d.summary.expense)) * 100}%` }} />
               </div>
-            ))
+              <div className={s.splitLegend}>
+                <span>
+                  <i className={s.splitFixed} /> 固定 {money(d.fixedExpense)}
+                  <span className={s.sub}> {((d.fixedExpense / Math.max(1, d.summary.expense)) * 100).toFixed(0)}%</span>
+                </span>
+                <span>
+                  <i className={s.splitFlex} /> 彈性 {money(d.flexExpense)}
+                  <span className={s.sub}> {((d.flexExpense / Math.max(1, d.summary.expense)) * 100).toFixed(0)}%</span>
+                </span>
+              </div>
+              {(["彈性", "固定"] as const).map((nature) => {
+                const rows = d.expenseByCategory.filter((c) => c.nature === nature);
+                if (rows.length === 0) return null;
+                return (
+                  <div key={nature} style={{ marginTop: 12 }}>
+                    <div className={s.sub} style={{ marginBottom: 6 }}>
+                      {nature === "彈性" ? "彈性支出（可以省）" : "固定支出"}
+                    </div>
+                    {rows.map((c) => (
+                      <div key={c.category} style={{ marginBottom: 10 }}>
+                        <div className={s.balanceRow} style={{ border: 0, padding: 0 }}>
+                          <span>{c.category}</span>
+                          <span className={s.mono}>
+                            {money(c.amount)} <span className={s.sub}>{((c.amount / Math.max(1, d.summary.expense)) * 100).toFixed(0)}%</span>
+                          </span>
+                        </div>
+                        <div className={s.bar}>
+                          <div className={`${s.barFill} ${nature === "固定" ? s.barFixed : ""}`} style={{ width: `${(c.amount / maxCat) * 100}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </>
           )}
         </div>
 

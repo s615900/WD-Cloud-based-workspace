@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import { MonthPicker } from "@/components/MonthPicker";
 import { PageHeader } from "@/components/ui";
-import { addMonths, apiFetch, currentMonth, errorText, formatCurrency, monthCells, todayISO, WEEKDAYS } from "@/lib/client";
+import { CountdownCard } from "./CountdownCard";
+import { TodoCard } from "./TodoCard";
+import { addMonths, apiFetch, currentMonth, errorText, formatCurrency, monthCellsPadded, todayISO, WEEKDAYS } from "@/lib/client";
 import { formatHours, paidMinutes, shiftPay } from "@/lib/payroll";
 import { useBusinessLocks } from "@/lib/useBusinessLocks";
-import { displayContractStatus } from "@/lib/contractStatus";
 import { PLAN_EXCLUDED_TEMPLATES } from "@/lib/plan";
 import type {
   ContractSummary,
@@ -64,11 +66,8 @@ function SummaryCard({
 }
 
 export function HomeView() {
-  const locks = useBusinessLocks();
   const today = todayISO();
   const [schedule, setSchedule] = useState<Load<ScheduleItem[]>>({ status: "loading" });
-  const [quotes, setQuotes] = useState<Load<QuoteSummary[]>>({ status: "loading" });
-  const [contracts, setContracts] = useState<ContractSummary[]>([]);
   const todayPlan = usePlanRange(today, today);
 
   const todayLabel = new Intl.DateTimeFormat("zh-TW", {
@@ -98,39 +97,6 @@ export function HomeView() {
       }
     })();
   }, []);
-
-  // 報價單／合約／專案：各模組鎖定時不打對應 API
-  useEffect(() => {
-    if (!locks) return;
-    if (!locks.quotes || !locks.contracts) {
-      (async () => {
-        try {
-          setQuotes({ status: "ok", data: locks.quotes ? [] : await apiFetch<QuoteSummary[]>("/api/quotes") });
-        } catch (err) {
-          setQuotes({ status: "error", message: errorText(err) });
-        }
-        if (!locks.contracts) {
-          // 合約若失敗不擋報價顯示
-          apiFetch<ContractSummary[]>("/api/contracts").then(setContracts, () => setContracts([]));
-        }
-      })();
-    }
-  }, [locks]);
-
-  const merged =
-    quotes.status === "ok"
-      ? [
-          ...quotes.data.slice(0, 3).map((q) => ({
-            kind: "報價",
-            label: q.clientName || `客戶 #${q.clientId}`,
-            sub: q.quoteDate,
-            id: q.id,
-          })),
-          ...contracts.slice(0, 3).map((c) => ({ kind: "合約", label: c.clientName || "—", sub: displayContractStatus(c).label, id: c.id })),
-        ]
-          .sort((a, b) => b.id - a.id)
-          .slice(0, 3)
-      : [];
 
   const rowClass = "flex justify-between border-b border-line py-2";
 
@@ -186,26 +152,10 @@ export function HomeView() {
           )}
         </SummaryCard>
 
-        {/* 報價單卡片同時顯示報價單／合約兩種資料，兩邊都鎖定才整張隱藏 */}
-        {locks && !(locks.quotes && locks.contracts) && (
-          <SummaryCard
-            title="合約 / 報價"
-            href="/desktop/business?tab=quotes"
-            linkLabel="查看全部"
-            state={quotes.status === "ok" ? { status: "ok", data: merged } : quotes}
-            empty="尚無報價或合約"
-          >
-            {merged.map((m) => (
-              <div key={`${m.kind}-${m.id}`} className={rowClass}>
-                <span>
-                  <span className="badge badge-gold mr-1.5">{m.kind}</span>
-                  {m.label}
-                </span>
-                <span className="form-hint">{m.sub}</span>
-              </div>
-            ))}
-          </SummaryCard>
-        )}
+        <TodoCard />
+
+        <CountdownCard limit={5} />
+
       </div>
 
       <MonthRoster today={today} />
@@ -229,7 +179,9 @@ function usePlanRange(from: string, to: string): PlanRange {
 
   useEffect(() => {
     let alive = true;
-    const months = [...new Set([from.slice(0, 7), to.slice(0, 7)])];
+    // from～to 之間每個月都要查（月曆補滿整週時，範圍可能橫跨上個月、這個月、下個月三個月）
+    const months: string[] = [];
+    for (let m = from.slice(0, 7); m <= to.slice(0, 7); m = addMonths(m, 1)) months.push(m);
     Promise.all([
       Promise.all(months.map((m) => apiFetch<{ entries: PlanEntry[] }>(`/api/plan?month=${m}`))),
       apiFetch<RosterTemplate[]>("/api/roster/templates").catch(() => [] as RosterTemplate[]),
@@ -271,7 +223,20 @@ const ymdOf = (v: string) => (v || "").replaceAll("/", "-").slice(0, 10);
 function useRangeExtras(from: string, to: string, locks: ReturnType<typeof useBusinessLocks>): Map<string, DayItem[]> {
   const [events, setEvents] = useState<{ key: string; items: RosterEntry[] } | null>(null);
   const [biz, setBiz] = useState<{ date: string; item: DayItem }[]>([]);
+  // 倒數日（每年重複的會落在今年的日期，所以另外抓，不靠行程原本的日期）
+  const [countdowns, setCountdowns] = useState<{ id: number; title: string; date: string; originalDate: string; daysLeft: number }[]>([]);
   const key = `${from}|${to}`;
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch<typeof countdowns>("/api/countdowns").then(
+      (list) => alive && setCountdowns(list),
+      () => {},
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -334,6 +299,11 @@ function useRangeExtras(from: string, to: string, locks: ReturnType<typeof useBu
     for (const e of events.items) {
       if (e.status === "取消") continue;
       if (e.kind === "班別" && !PLAN_EXCLUDED_TEMPLATES.has(e.title)) continue;
+      if (e.countdown) {
+        // 倒數日：金色「倒數」標籤，跟一般行程的圓點區分
+        push(e.date, { key: `e${e.id}`, tag: "倒數", kind: "biz", label: e.title.split("\n")[0] ?? e.title, sub: "" });
+        continue;
+      }
       push(e.date, {
         key: `e${e.id}`,
         kind: "event",
@@ -343,6 +313,11 @@ function useRangeExtras(from: string, to: string, locks: ReturnType<typeof useBu
       });
     }
   }
+  // 每年重複的倒數日：行程原本的日期不在這個月時，把今年（下一次）的日期補上
+  for (const c of countdowns) {
+    if (c.date < from || c.date > to || c.date === c.originalDate) continue;
+    push(c.date, { key: `cd${c.id}`, tag: "倒數", kind: "biz", label: c.title, sub: c.daysLeft === 0 ? "今天" : `還有 ${c.daysLeft} 天` });
+  }
   for (const { date, item } of biz) if (date >= from && date <= to) push(date, item);
   return map;
 }
@@ -351,12 +326,14 @@ function useRangeExtras(from: string, to: string, locks: ReturnType<typeof useBu
 function MonthRoster({ today }: { today: string }) {
   const locks = useBusinessLocks();
   const [month, setMonth] = useState(currentMonth);
-  const days = monthCells(month).filter((d): d is string => d !== null);
-  const from = days[0] ?? `${month}-01`;
-  const to = days[days.length - 1] ?? `${month}-28`;
+  // 範圍含前後補滿整週的相鄰月份日期（淡淡顯示在空白格）；統計只算這個月
+  const cells = monthCellsPadded(month);
+  const from = cells[0]?.date ?? `${month}-01`;
+  const to = cells[cells.length - 1]?.date ?? `${month}-28`;
   const plan = usePlanRange(from, to);
   const extras = useRangeExtras(from, to, locks);
-  const entries = plan.status === "ok" ? plan.entries : [];
+  const allPlan = plan.status === "ok" ? plan.entries : [];
+  const entries = allPlan.filter((e) => e.date.startsWith(month));
   const totalMin = entries.reduce((sum, e) => sum + paidMinutes(e), 0);
   const totalPay = entries.reduce((sum, e) => sum + shiftPay(e), 0);
 
@@ -371,15 +348,16 @@ function MonthRoster({ today }: { today: string }) {
             </p>
           )}
         </div>
-        <div className="flex gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button className="btn btn-outline" onClick={() => setMonth((m) => addMonths(m, -1))}>
             ‹ 上月
           </button>
-          <button className="btn btn-outline" onClick={() => setMonth(currentMonth())}>
-            本月
-          </button>
+          <MonthPicker value={month} onChange={setMonth} />
           <button className="btn btn-outline" onClick={() => setMonth((m) => addMonths(m, 1))}>
             下月 ›
+          </button>
+          <button className="btn btn-outline" onClick={() => setMonth(currentMonth())}>
+            本月
           </button>
         </div>
       </div>
@@ -396,22 +374,22 @@ function MonthRoster({ today }: { today: string }) {
         <p className="empty-hint mt-1.5">無法載入（{plan.message}）</p>
       ) : (
         <div className="mt-1 grid auto-rows-fr grid-cols-7 gap-1 sm:gap-1.5">
-          {monthCells(month).map((date, i) => {
-            if (!date) {
-              return <div key={`pad-${i}`} className="min-h-[84px] rounded-[10px] border border-line bg-[#FAFCFD] sm:min-h-[132px]" />;
-            }
-            const list = entries.filter((e) => e.date === date);
+          {cells.map(({ date, outside }) => {
+            const list = allPlan.filter((e) => e.date === date);
             const dayExtras = extras.get(date) ?? [];
-            const dayMin = list.reduce((sum, e) => sum + paidMinutes(e), 0);
+            const dayMin = outside ? 0 : list.reduce((sum, e) => sum + paidMinutes(e), 0);
             return (
               <div
                 key={date}
-                className={`min-h-[84px] min-w-0 rounded-[10px] border bg-white px-1 py-1.5 sm:min-h-[132px] sm:px-2 sm:py-2 ${
-                  date === today ? "border-2 border-navy-2" : "border-line"
-                }`}
+                className={`min-h-[84px] min-w-0 rounded-[10px] border px-1 py-1.5 sm:min-h-[132px] sm:px-2 sm:py-2 ${
+                  outside ? "bg-[#FAFCFD] opacity-45" : "bg-white"
+                } ${date === today ? "border-2 border-navy-2" : "border-line"}`}
               >
                 <div className="mb-1.5 flex items-baseline justify-between">
-                  <span className="text-[13px] font-bold">{parseInt(date.slice(8), 10)}</span>
+                  <span className={`text-[13px] font-bold ${outside ? "font-normal text-muted" : ""}`}>
+                    {outside && date.slice(8) === "01" ? `${parseInt(date.slice(5, 7), 10)}/` : ""}
+                    {parseInt(date.slice(8), 10)}
+                  </span>
                   {dayMin > 0 && <span className="text-[11px] text-muted">{formatHours(dayMin)}h</span>}
                 </div>
                 {dayExtras.map((x) => (
@@ -448,7 +426,7 @@ function MonthRoster({ today }: { today: string }) {
         </div>
       )}
       <p className="form-hint mt-3">
-        每格上方是行事曆行程（含拍攝賽事、夜班）與接案（拍攝／報價／合約日期，金色標籤），下方是預排班（彩色班別）；要排班請到預排班頁。
+        每格上方是行事曆行程（含拍攝賽事、夜班）、倒數日與接案（拍攝／報價／合約日期，金色標籤），下方是預排班（彩色班別）；要排班請到預排班頁。
       </p>
     </div>
   );

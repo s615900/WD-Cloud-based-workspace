@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { MonthPicker } from "@/components/MonthPicker";
 import { PageHeader } from "@/components/ui";
 import {
   addDays,
@@ -9,6 +10,7 @@ import {
   currentMonth,
   errorText,
   monthCells,
+  monthCellsPadded,
   todayISO,
   weekdayOf,
   WEEKDAYS,
@@ -169,6 +171,18 @@ export function CalendarView({ initialDate }: { initialDate: string | null }) {
                 <button className="btn btn-outline" onClick={() => go(-1)}>
                   ‹ 上頁
                 </button>
+                {view === "month" ? (
+                  <MonthPicker value={calendarMonth} onChange={setCalendarMonth} />
+                ) : (
+                  <input
+                    className="input"
+                    style={{ width: "auto" }}
+                    type="date"
+                    value={weekStart}
+                    onChange={(e) => e.target.value && setWeekStart(startOfWeek(e.target.value))}
+                    aria-label="跳到某一週"
+                  />
+                )}
                 <button
                   className="btn btn-outline"
                   onClick={() => {
@@ -231,7 +245,7 @@ function CalendarBody({
     (async () => {
       try {
         if (view === "month") {
-          const cells = monthCells(calendarMonth).filter(Boolean) as string[];
+          const cells = monthCellsPadded(calendarMonth).map((c) => c.date);
           const entries = await apiFetch<RosterEntry[]>(
             `/api/roster/schedule?from=${cells[0]}&to=${cells[cells.length - 1]}`,
           );
@@ -276,9 +290,7 @@ function CalendarBody({
               {w}
             </div>
           ))}
-          {monthCells(calendarMonth).map((date, i) => {
-            if (!date)
-              return <div key={`pad-${i}`} className="min-h-[68px] rounded-[9px] border border-line bg-[#FAFCFD] sm:min-h-[90px]" />;
+          {monthCellsPadded(calendarMonth).map(({ date, outside }) => {
             const entries = entriesOf(date);
             const selected = date === selectedDate;
             return (
@@ -286,10 +298,13 @@ function CalendarBody({
                 key={date}
                 onClick={() => onDateClick(date)}
                 className={`min-h-[68px] min-w-0 cursor-pointer rounded-[9px] border px-[3px] py-1 hover:border-navy sm:min-h-[90px] sm:px-[7px] sm:py-1.5 ${
-                  selected ? "border-navy bg-navy-soft shadow-[inset_0_0_0_1px_var(--color-navy)]" : "border-line bg-white"
-                }`}
+                  selected ? "border-navy bg-navy-soft shadow-[inset_0_0_0_1px_var(--color-navy)]" : outside ? "border-line bg-[#FAFCFD]" : "border-line bg-white"
+                } ${outside ? "opacity-45" : ""}`}
               >
-                <div className="text-[13px] font-bold">{Number(date.slice(8))}</div>
+                <div className={`text-[13px] font-bold ${outside ? "font-normal text-muted" : ""}`}>
+                  {outside && Number(date.slice(8)) === 1 ? `${Number(date.slice(5, 7))}/` : ""}
+                  {Number(date.slice(8))}
+                </div>
                 {/* 手機：跟舊版一樣用彩色色條顯示名稱，格子窄所以字縮小、最多 2 條 */}
                 <div className="sm:hidden">
                   {entries.slice(0, 2).map((e) => (

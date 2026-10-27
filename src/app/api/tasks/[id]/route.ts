@@ -1,4 +1,4 @@
-import { dueDateConfigured, queryRecordsFromRagic, updateTaskInRagic } from "@/server/bot/ragic";
+import { dueDateConfigured, pinConfigured, queryRecordsFromRagic, updateTaskInRagic } from "@/server/bot/ragic";
 import { DATE_RE } from "@/server/modules/dates";
 import { VALID_TASK_STATUSES } from "@/server/modules/tasks";
 import { listAllSchedule, updateSchedule } from "@/server/ragic/schedule";
@@ -6,7 +6,7 @@ import { errorMessage, json, readBody } from "@/server/http";
 
 export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) {
   const { id } = await ctx.params;
-  const body = await readBody<{ status?: unknown; source?: unknown; dueDate?: unknown; content?: unknown }>(req);
+  const body = await readBody<{ status?: unknown; source?: unknown; dueDate?: unknown; content?: unknown; pinned?: unknown }>(req);
 
   // 桌面版待辦頁把 /ragicforms21/1（待辦）跟 /ragicforms21/8（排班行程）兩張表的紀錄混在
   // 同一個清單顯示，紀錄編號互不相干、會撞號。呼叫端一定要明確帶 source，
@@ -16,8 +16,12 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) 
   }
 
   // 狀態、到期日、內容至少要改一個
-  if (body.status === undefined && body.dueDate === undefined && body.content === undefined) {
-    return json({ success: false, error: "請提供 status、dueDate 或 content" }, 400);
+  if (body.status === undefined && body.dueDate === undefined && body.content === undefined && body.pinned === undefined) {
+    return json({ success: false, error: "請提供 status、dueDate、content 或 pinned" }, 400);
+  }
+  if (body.pinned !== undefined) {
+    if (typeof body.pinned !== "boolean") return json({ success: false, error: "pinned 必須是布林值" }, 400);
+    if (!pinConfigured()) return json({ success: false, error: "釘選欄位尚未設定" }, 503);
   }
   if (body.content !== undefined && (typeof body.content !== "string" || !body.content.trim())) {
     return json({ success: false, error: "content 不可為空" }, 400);
@@ -42,7 +46,7 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) 
 
   // 行程（/8）：只能改狀態（完成／準備中），其他欄位請到行事曆改
   if (body.source === "schedule") {
-    if (body.status === undefined || body.dueDate !== undefined || body.content !== undefined) {
+    if (body.status === undefined || body.dueDate !== undefined || body.content !== undefined || body.pinned !== undefined) {
       return json({ success: false, error: "行程只能在這裡更改狀態，標題與時間請用行程的編輯功能" }, 400);
     }
     try {
@@ -72,6 +76,7 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[id]">) 
         ...(typeof body.status === "string" ? { status: body.status } : {}),
         ...(typeof body.dueDate === "string" ? { dueDate: body.dueDate } : {}),
         ...(typeof body.content === "string" ? { content: body.content.trim() } : {}),
+        ...(typeof body.pinned === "boolean" ? { pinned: body.pinned } : {}),
       },
       record["截止日期"]?.trim() ?? "",
     );

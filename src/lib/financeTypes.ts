@@ -1,7 +1,7 @@
 // 個人財務模組前後端共用的型別（只有型別，沒有執行期程式碼）。
-import type { AccountType, CategoryKind, TxSource, TxStatus, TxType } from "@/server/finance/ragicFields";
+import type { AccountType, CategoryKind, CategoryNature, TxSource, TxStatus, TxType } from "@/server/finance/ragicFields";
 
-export type { AccountType, CategoryKind, TxSource, TxStatus, TxType };
+export type { AccountType, CategoryKind, CategoryNature, TxSource, TxStatus, TxType };
 
 // id 是 Ragic 紀錄編號（字串，第一筆是 "0"，0 是有效值）；code 是 AC-001 這類業務編號
 export interface AccountItem {
@@ -28,6 +28,7 @@ export interface CategoryItem {
   id: string;
   name: string;
   kind: CategoryKind;
+  nature: CategoryNature; // 支出性質：固定／彈性（沒填＝彈性）
   color: string;
   order: number;
   active: boolean;
@@ -232,10 +233,33 @@ export interface CardOverview {
   usage: number | null; // 已占用比例 0~1，沒設額度為 null
 }
 
+export interface BudgetItem {
+  id: string;
+  target: string; // 分類名稱，或「全部」
+  limit: number; // 每月上限
+}
+
+export interface BudgetStatus {
+  target: string;
+  limit: number;
+  spent: number; // 本月已花（全部＝本月支出合計）
+  remaining: number; // 負數＝超支
+}
+
+export interface MonthlyPoint {
+  month: string; // yyyy-MM
+  income: number;
+  expense: number;
+}
+
 export interface FinanceOverview {
   month: string;
   summary: TransactionSummary;
-  expenseByCategory: { category: string; amount: number }[];
+  expenseByCategory: { category: string; amount: number; nature: CategoryNature }[];
+  fixedExpense: number; // 本月固定支出合計
+  flexExpense: number; // 本月彈性支出合計（含未分類）
+  budgets: BudgetStatus[]; // 本月預算使用狀況，「全部」排第一
+  monthly: MonthlyPoint[]; // 近 12 個月（含本月），舊→新
   dues: DueItem[];
   cards: CardOverview[];
   loans: { code: string; name: string; remainingPrincipal: number; paidPeriods: number; periods: number }[];

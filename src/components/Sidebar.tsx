@@ -2,7 +2,7 @@
 
 // 導覽列：所有 /desktop/* 頁面共用（掛在 app/desktop/layout.tsx）。
 // 桌面（≥ 1024px）是上方導覽列；平板／手機（< 1024px）是可開合的抽屜：漢堡按鈕＋背景遮罩。
-// 每一項都是單一按鈕，點下去進對應頁面（人事財務表、網站管理、接案商業是各自的總頁）。
+// 每一項都是單一按鈕，點下去進對應頁面（時間線、人事財務表、財務、網站管理、接案商業是各自的總頁）。
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -13,8 +13,10 @@ type NavItem = { href: string; label: string; also?: string[] };
 const NAV_ITEMS: NavItem[] = [
   { href: "/desktop", label: "首頁" },
   { href: "/desktop/calendar", label: "行事曆" },
+  { href: "/desktop/timeline", label: "時間線" },
   { href: "/desktop/tasks", label: "待辦事項" },
   { href: "/desktop/hr-finance", label: "人事財務表" },
+  { href: "/desktop/finance", label: "財務" },
   { href: "/desktop/sites", label: "網站管理" },
   {
     href: "/desktop/business",

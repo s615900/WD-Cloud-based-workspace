@@ -10,7 +10,7 @@
 // 上確認過的預約（見 bot/ragic.ts 的 confirmBookingInRagic）。WD 需先在 Ragic 後台把
 // 這個值加進本欄位的下拉選項，程式端才寫得進去。
 import { ragicList, ragicGetOne, ragicCreate, ragicUpdate, ragicDelete, type RagicRecordData } from "./client";
-import { F_SCHEDULE, SCHEDULE_GCAL_FIELD_ID } from "./fields";
+import { F_SCHEDULE, SCHEDULE_COUNTDOWN_FIELD_ID, SCHEDULE_GCAL_FIELD_ID, SCHEDULE_YEARLY_FIELD_ID } from "./fields";
 import { calendarConfigured, createGoogleEvent, updateGoogleEvent, deleteGoogleEvent } from "../bot/calendar";
 
 export type ScheduleKind = "班別" | "個人行程" | "客戶預約";
@@ -33,6 +33,8 @@ export interface ScheduleEntry {
   color: string;
   location: string;
   note: string;
+  countdown: boolean; // 是否列入倒數日
+  yearly: boolean; // 倒數日每年重複（國曆）
   gcalId: string; // 對應的 Google 日曆事件 ID（欄位尚未設定或尚未同步時為空字串）
 }
 
@@ -72,6 +74,8 @@ function toScheduleEntry(id: string, r: RagicRecordData): ScheduleEntry {
     color: String(r["班別顏色"] ?? ""),
     location: String(r["地點"] ?? ""),
     note: String(r["備註"] ?? ""),
+    countdown: r["倒數日"] === "是",
+    yearly: r["每年重複"] === "是",
     gcalId: String(r["Google事件ID"] ?? ""),
   };
 }
@@ -106,6 +110,8 @@ export interface CreateScheduleInput {
   note?: string;
   code?: string;
   gcalId?: string;
+  countdown?: boolean;
+  yearly?: boolean;
 }
 
 // 寫入選項：skipGoogle = 這次寫入本身就是從 Google 同步過來的，不要再回寫 Google（避免來回觸發）
@@ -130,6 +136,8 @@ function buildScheduleFields(input: CreateScheduleInput): Record<string, string>
     [String(F_SCHEDULE.location)]: input.location ?? "",
     [String(F_SCHEDULE.note)]: input.note ?? "",
     ...(gcalFieldConfigured() && input.gcalId ? { [SCHEDULE_GCAL_FIELD_ID]: input.gcalId } : {}),
+    [SCHEDULE_COUNTDOWN_FIELD_ID]: input.countdown ? "是" : "否",
+    [SCHEDULE_YEARLY_FIELD_ID]: input.countdown && input.yearly ? "是" : "否",
   };
 }
 
@@ -209,6 +217,8 @@ export interface UpdateScheduleInput {
   location?: string;
   note?: string;
   gcalId?: string;
+  countdown?: boolean;
+  yearly?: boolean;
 }
 
 // 這些欄位有變動才需要同步到 Google（完成／備註之類的變動不影響日曆事件）
@@ -226,6 +236,8 @@ export async function updateSchedule(
     fields[String(fieldId)] = typeof value === "boolean" ? (value ? "是" : "否") : String(value);
   }
   if (gcalFieldConfigured() && input.gcalId !== undefined) fields[SCHEDULE_GCAL_FIELD_ID] = input.gcalId;
+  if (input.countdown !== undefined) fields[SCHEDULE_COUNTDOWN_FIELD_ID] = input.countdown ? "是" : "否";
+  if (input.yearly !== undefined) fields[SCHEDULE_YEARLY_FIELD_ID] = input.yearly ? "是" : "否";
   if (Object.keys(fields).length === 0) return;
   await ragicUpdate("schedule", id, fields);
 

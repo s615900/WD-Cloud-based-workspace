@@ -4,6 +4,7 @@
 // 班別模板跟行事曆共用同一張 Ragic 表（/api/roster/templates）；排好的班存在獨立的「預排班」表（/api/plan），
 // 按「匯入行事曆」前不會出現在行事曆、LINE 提醒，也不影響空檔推算。
 import { useCallback, useEffect, useState } from "react";
+import { MonthPicker } from "@/components/MonthPicker";
 import { Message, Modal, ModalActions, PageHeader, type MessageState } from "@/components/ui";
 import {
   addMonths,
@@ -12,6 +13,7 @@ import {
   errorText,
   formatCurrency,
   monthCells,
+  monthCellsPadded,
   sendJson,
   todayISO,
   weekdayOf,
@@ -26,7 +28,7 @@ type Load =
   | { status: "loading" }
   | { status: "notConfigured" }
   | { status: "error"; message: string }
-  | { status: "ok"; entries: PlanEntry[]; templatePay: boolean };
+  | { status: "ok"; entries: PlanEntry[]; templatePay: boolean; doublePay: boolean };
 
 // 結算日：班別模板（Ragic「結算日」欄位）填 20 的班別，本期 = 上月 21 日～本月 20 日，其餘照日曆月。
 const lastDay = (month: string) => {
@@ -67,7 +69,7 @@ export function PlanView() {
   }, [version]);
 
   useEffect(() => {
-    apiFetch<{ entries: PlanEntry[]; templatePay: boolean }>("/api/plan").then(
+    apiFetch<{ entries: PlanEntry[]; templatePay: boolean; doublePay: boolean }>("/api/plan").then(
       (data) => setLoad({ status: "ok", ...data }),
       (err) => {
         const message = errorText(err);
@@ -90,7 +92,8 @@ export function PlanView() {
   });
   const ready = load.status === "ok";
   const byDate = new Map<string, PlanEntry[]>();
-  for (const e of entries) byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]);
+  // 日曆格子用全部班（含相鄰月份補在空白格的），薪資統計仍只算這個月／結算期
+  for (const e of allEntries) byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]);
   const summary = summarize(periodEntries, (e) => ({ key: e.name, label: e.name }));
 
   async function addToDate(date: string, template: RosterTemplate) {
@@ -120,6 +123,48 @@ export function PlanView() {
   const [fixing, setFixing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importDone, setImportDone] = useState("");
+
+  // 薪資實領：整個結算期（月）領到的總額，一個結算方式一筆（全部／月底結算／20 日結算）
+  const PAY_LABEL = { all: "全部", month: "月底結算", d20: "20 日結算" } as const;
+  const payKey = PAY_LABEL[settleFilter];
+  const [payslips, setPayslips] = useState<Record<string, number>>({});
+  // 輸入中的值綁定它屬於哪個月份＋結算方式，切換後自動失效，不會帶到別的期別
+  const [draftState, setDraftState] = useState<{ id: string; value: string } | null>(null);
+  const draftId = `${month}|${payKey}`;
+  const payDraft = draftState?.id === draftId ? draftState.value : null;
+  const setPayDraft = (value: string | null) => setDraftState(value === null ? null : { id: draftId, value });
+  const [payBusy, setPayBusy] = useState(false);
+  useEffect(() => {
+    apiFetch<{ name: string; amount: number }[]>(`/api/plan/payslip?month=${month}`).then(
+      (list) => setPayslips(Object.fromEntries(list.map((p) => [p.name, p.amount]))),
+      () => setPayslips({}),
+    );
+  }, [month, version]);
+
+  async function savePayslip() {
+    setPayBusy(true);
+    try {
+      await sendJson("/api/plan/payslip", "POST", { month, name: payKey, amount: (payDraft ?? "").trim() });
+      setPayDraft(null);
+      setNotice("");
+      refresh();
+    } catch (err) {
+      setNotice(errorText(err, "儲存實領失敗"));
+    } finally {
+      setPayBusy(false);
+    }
+  }
+
+  const doublePay = load.status === "ok" && load.doublePay;
+
+  async function toggleDouble(entry: PlanEntry) {
+    try {
+      await sendJson(`/api/plan/${entry.id}`, "PATCH", { double: !entry.double });
+      refresh();
+    } catch (err) {
+      setNotice(errorText(err, "更新失敗"));
+    }
+  }
 
   async function removeEntry(entry: PlanEntry) {
     if (!confirm(`刪除 ${entry.date} 的「${entry.name}」？`)) return;
@@ -270,33 +315,18 @@ export function PlanView() {
 
       <div className="grid grid-cols-1 gap-[18px] xl:grid-cols-[2fr_1fr]">
         <section className="card min-w-0">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <h3 className="mb-0">{month}</h3>
-            <div className="flex flex-wrap gap-2">
-              <select
-                className="btn btn-outline cursor-pointer font-semibold"
-                aria-label="匯入的班別"
-                value={IMPORT_PREFIXES.includes(importPrefix) ? importPrefix : ""}
-                onChange={(e) => setImportPrefix(e.target.value)}
-              >
-                <option value="">全部班別</option>
-                {IMPORT_PREFIXES.map((x) => (
-                  <option key={x} value={x}>
-                    {x}
-                  </option>
-                ))}
-              </select>
-              <button className="btn btn-outline" disabled={syncing || syncList.length === 0} onClick={syncFromTemplates}>
-                {syncing ? "同步中…" : syncList.length > 0 ? `同步模板時間（${syncList.length}）` : "同步模板時間"}
-              </button>
-              <button className="btn btn-primary" disabled={!ready || importing || entries.length === 0} onClick={importToCalendar}>
-                {importing ? "匯入中…" : "匯入行事曆"}
-              </button>
-              <button className="btn btn-outline" onClick={() => setMonth((m) => addMonths(m, -1))}>
+            <div className="flex flex-wrap items-center gap-1.5 sm:flex-nowrap">
+              <button className="btn btn-outline px-3" onClick={() => setMonth((m) => addMonths(m, -1))}>
                 ‹ 上月
               </button>
+              <MonthPicker value={month} onChange={setMonth} />
+              <button className="btn btn-outline px-3" onClick={() => setMonth((m) => addMonths(m, 1))}>
+                下月 ›
+              </button>
               <button
-                className="btn btn-outline"
+                className="btn btn-outline px-3"
                 onClick={() => {
                   setMonth(currentMonth());
                   setSelected(today);
@@ -304,10 +334,28 @@ export function PlanView() {
               >
                 本月
               </button>
-              <button className="btn btn-outline" onClick={() => setMonth((m) => addMonths(m, 1))}>
-                下月 ›
-              </button>
             </div>
+          </div>
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <select
+              className="btn btn-outline cursor-pointer font-semibold"
+              aria-label="匯入的班別"
+              value={IMPORT_PREFIXES.includes(importPrefix) ? importPrefix : ""}
+              onChange={(e) => setImportPrefix(e.target.value)}
+            >
+              <option value="">全部班別</option>
+              {IMPORT_PREFIXES.map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+            <button className="btn btn-outline" disabled={syncing || syncList.length === 0} onClick={syncFromTemplates}>
+              {syncing ? "同步中…" : syncList.length > 0 ? `同步模板時間（${syncList.length}）` : "同步模板時間"}
+            </button>
+            <button className="btn btn-primary" disabled={!ready || importing || entries.length === 0} onClick={importToCalendar}>
+              {importing ? "匯入中…" : "匯入行事曆"}
+            </button>
           </div>
           <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
             {WEEKDAYS.map((w) => (
@@ -315,21 +363,22 @@ export function PlanView() {
                 {w}
               </div>
             ))}
-            {monthCells(month).map((date, i) => {
-              if (!date)
-                return <div key={`pad-${i}`} className="min-h-[68px] rounded-[9px] border border-line bg-[#FAFCFD] sm:min-h-[90px]" />;
+            {monthCellsPadded(month).map(({ date, outside }) => {
               const list = byDate.get(date) ?? [];
-              const dayMin = list.reduce((s, e) => s + paidMinutes(e), 0);
+              const dayMin = outside ? 0 : list.reduce((s, e) => s + paidMinutes(e), 0);
               return (
                 <div
                   key={date}
                   onClick={() => onDateClick(date)}
                   className={`min-h-[68px] min-w-0 cursor-pointer rounded-[9px] border px-[3px] py-1 hover:border-navy sm:min-h-[90px] sm:px-[7px] sm:py-1.5 ${
-                    date === selected ? "border-navy bg-navy-soft shadow-[inset_0_0_0_1px_var(--color-navy)]" : "border-line bg-white"
-                  }`}
+                    date === selected ? "border-navy bg-navy-soft shadow-[inset_0_0_0_1px_var(--color-navy)]" : outside ? "border-line bg-[#FAFCFD]" : "border-line bg-white"
+                  } ${outside ? "opacity-45" : ""}`}
                 >
                   <div className="flex items-baseline justify-between">
-                    <span className={`text-[13px] font-bold ${date === today ? "text-gold" : ""}`}>{Number(date.slice(8))}</span>
+                    <span className={`text-[13px] font-bold ${date === today ? "text-gold" : ""} ${outside ? "font-normal text-muted" : ""}`}>
+                      {outside && Number(date.slice(8)) === 1 ? `${Number(date.slice(5, 7))}/` : ""}
+                      {Number(date.slice(8))}
+                    </span>
                     {dayMin > 0 && <span className="text-[10px] text-muted">{formatHours(dayMin)}h</span>}
                   </div>
                   {list.slice(0, 3).map((e) => (
@@ -338,6 +387,7 @@ export function PlanView() {
                       className="mt-0.5 overflow-hidden rounded px-[3px] text-[9px] leading-[14px] font-bold whitespace-nowrap text-white sm:mt-1 sm:h-4 sm:px-[5px] sm:text-[10px]"
                       style={{ background: colorOf(templates, e.name) }}
                     >
+                      {e.double ? "×2 " : ""}
                       {e.name}
                     </div>
                   ))}
@@ -363,14 +413,25 @@ export function PlanView() {
                 style={{ borderLeftColor: colorOf(templates, e.name) }}
               >
                 <div className="min-w-0 text-[13px]">
-                  <div className="font-bold">{e.name}</div>
+                  <div className="font-bold">
+                    {e.name}
+                    {e.double ? <span className="badge badge-gold ml-1.5">×2 雙倍</span> : null}
+                  </div>
                   <div className="text-muted">
                     {e.start}–{e.end} · {formatHours(paidMinutes(e))} 小時 · {formatCurrency(shiftPay(e))}
                   </div>
                 </div>
-                <button className="btn btn-outline btn-sm flex-none text-danger" onClick={() => void removeEntry(e)}>
-                  刪除
-                </button>
+                <div className="flex flex-none items-center gap-2">
+                  {doublePay && (
+                    <label className="flex cursor-pointer items-center gap-1 text-xs">
+                      <input type="checkbox" checked={e.double ?? false} onChange={() => void toggleDouble(e)} />
+                      雙倍
+                    </label>
+                  )}
+                  <button className="btn btn-outline btn-sm text-danger" onClick={() => void removeEntry(e)}>
+                    刪除
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -463,6 +524,75 @@ export function PlanView() {
                 </tbody>
               </table>
             </div>
+            {settleFilter === "all" ? (
+              (() => {
+                // 「全部」不能輸入：只加總「月底結算」「20 日結算」各自填的實領，跟那兩邊的系統薪資比
+                const parts = (["month", "d20"] as const).map((k) => {
+                  const label = PAY_LABEL[k];
+                  const system = periodEntries.filter((e) => settle20.has(e.name) === (k === "d20")).reduce((sum, e) => sum + shiftPay(e), 0);
+                  return { label, system, actual: payslips[label] };
+                });
+                const filled = parts.filter((p) => p.actual !== undefined);
+                const actual = filled.reduce((sum, p) => sum + (p.actual ?? 0), 0);
+                const system = filled.reduce((sum, p) => sum + p.system, 0);
+                const diff = actual - system;
+                return (
+                  <div className="mt-3 rounded-[9px] bg-page px-3 py-2.5 text-[13px]">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      <b>{month} 實領（加總）</b>
+                      {parts.map((p) => (
+                        <span key={p.label} className="text-muted">
+                          {p.label}：{p.actual === undefined ? "未填" : formatCurrency(p.actual)}
+                        </span>
+                      ))}
+                      {filled.length > 0 && (
+                        <>
+                          <b>合計 {formatCurrency(actual)}</b>
+                          <b className={diff === 0 ? "text-muted" : diff > 0 ? "text-teal" : "text-danger"}>
+                            {diff === 0 ? "吻合" : `差額 ${diff > 0 ? "+" : "−"}${formatCurrency(Math.abs(diff))}`}
+                          </b>
+                        </>
+                      )}
+                    </div>
+                    <p className="form-hint mt-1">
+                      實領請到「月底結算」「20 日結算」分頁填；這裡只加總，差額只比對有填的項目（系統算 {formatCurrency(system)}）。
+                    </p>
+                  </div>
+                );
+              })()
+            ) : (
+              (() => {
+                const actual = payslips[payKey];
+                const diff = actual === undefined ? null : actual - summary.pay;
+                const dirty = payDraft !== null && payDraft !== String(actual ?? "");
+                return (
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[9px] bg-page px-3 py-2.5 text-[13px]">
+                    <b>{month}（{payKey}）實領</b>
+                    <input
+                      className="input w-36"
+                      type="number"
+                      min={0}
+                      step={1}
+                      placeholder="填這個月實領"
+                      value={payDraft ?? String(actual ?? "")}
+                      onChange={(e) => setPayDraft(e.target.value)}
+                      aria-label="本月實領金額"
+                    />
+                    {dirty && (
+                      <button className="btn btn-primary btn-sm" disabled={payBusy} onClick={() => void savePayslip()}>
+                        {payBusy ? "儲存中…" : "儲存"}
+                      </button>
+                    )}
+                    <span className="text-muted">系統算 {formatCurrency(summary.pay)}</span>
+                    {diff !== null && (
+                      <b className={diff === 0 ? "text-muted" : diff > 0 ? "text-teal" : "text-danger"}>
+                        {diff === 0 ? "吻合" : `差額 ${diff > 0 ? "+" : "−"}${formatCurrency(Math.abs(diff))}`}
+                      </b>
+                    )}
+                  </div>
+                );
+              })()
+            )}
             <h3 className="mt-5">明細</h3>
             <div className="overflow-x-auto">
               <table className="data-table nowrap">
@@ -475,6 +605,7 @@ export function PlanView() {
                     <th>工時</th>
                     <th>時薪</th>
                     <th>薪資</th>
+                    {doublePay && <th>雙倍</th>}
                     <th></th>
                   </tr>
                 </thead>
@@ -492,6 +623,11 @@ export function PlanView() {
                       <td>{formatHours(paidMinutes(e))}</td>
                       <td>{formatCurrency(e.rate)}</td>
                       <td>{formatCurrency(shiftPay(e))}</td>
+                      {doublePay && (
+                        <td>
+                          <input type="checkbox" checked={e.double ?? false} onChange={() => void toggleDouble(e)} aria-label="雙倍" />
+                        </td>
+                      )}
                       <td>
                         <button className="btn btn-outline btn-sm text-danger" onClick={() => void removeEntry(e)}>
                           刪除
