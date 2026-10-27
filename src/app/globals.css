@@ -179,6 +179,7 @@
    放在 @layer 外，才不會被 flex-wrap、flex-1 這些工具類別蓋掉。 */
 @media (max-width: 639px) {
   .nav-compact {
+    width: 100%;
     flex-wrap: nowrap !important;
     gap: 4px !important;
   }
