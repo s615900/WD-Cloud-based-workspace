@@ -26,7 +26,7 @@ export function MonthPicker({
   const pad = (n: number) => String(n).padStart(2, "0");
 
   return (
-    <span className="inline-flex items-center gap-1 sm:gap-1.5">
+    <span className="month-picker inline-flex items-center gap-1 sm:gap-1.5">
       <select
         className={`${className} month-select`}
         style={{ width: "auto", fontWeight: 600 }}

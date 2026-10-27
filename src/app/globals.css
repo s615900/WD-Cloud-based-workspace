@@ -182,13 +182,37 @@
     flex-wrap: nowrap !important;
     gap: 4px !important;
   }
+  /* 按鈕與下拉選單按比例撐滿整列，右邊不留空白 */
   .nav-compact .btn {
-    flex: 0 0 auto !important;
-    padding: 7px 8px;
+    flex: 1 1 0 !important;
+    min-width: 0;
+    padding: 7px 4px;
     font-size: 12.5px;
+  }
+  .nav-compact .month-picker {
+    flex: 3.2 1 0;
+    min-width: 0;
+  }
+  .nav-compact .month-picker select {
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100% !important;
   }
   .nav-compact select {
     padding: 7px 4px 7px 8px !important;
     font-size: 12.5px !important;
+  }
+  /* 預排班「班別／同步／匯入」三個控制項排成等寬一排 */
+  .tool-row {
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+  }
+  .tool-row > * {
+    flex: 1 1 0 !important;
+    min-width: 0;
+    padding: 8px 2px !important;
+    font-size: 12.5px !important;
+    text-align: center;
+    text-align-last: center;
   }
 }

@@ -336,7 +336,7 @@ export function PlanView() {
               </button>
             </div>
           </div>
-          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+          <div className="tool-row mb-3 flex flex-wrap items-center justify-end gap-2">
             <select
               className="btn btn-outline cursor-pointer font-semibold"
               aria-label="匯入的班別"
