@@ -43,7 +43,9 @@ export function Sidebar() {
   return (
     <>
       {/* 桌面上方導覽列：項目在左，標題靠右 */}
-      <nav className="sticky top-0 z-[60] flex items-center bg-navy px-6 py-2 text-white max-lg:hidden">
+      {/* iPad 橫放（≥ 1024px）也走這裡：頂列要墊 safe-area-inset-top 並有 3.5rem 內容高，
+          才蓋得住「加入主畫面」時 iOS 在狀態列下疊的半透明漸層 */}
+      <nav className="sticky top-0 z-[60] flex min-h-[calc(3.5rem+env(safe-area-inset-top))] items-center bg-navy px-6 pt-[env(safe-area-inset-top)] text-white max-lg:hidden">
         <div className="flex items-center gap-1">
           {ALL_ITEMS.map((item) => (
             <Link key={item.href} href={item.href} className={topLink(isActive(pathname, item))}>
@@ -55,7 +57,7 @@ export function Sidebar() {
       </nav>
 
       {/* 手機／平板頂列（漢堡選單），桌面寬度隱藏 */}
-      <div className="sticky top-0 z-[60] hidden items-center gap-3 bg-navy px-4 pb-2 pt-[max(8px,env(safe-area-inset-top))] text-white max-lg:flex">
+      <div className="sticky top-0 z-[60] hidden min-h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-3 bg-navy px-4 pt-[env(safe-area-inset-top)] text-white max-lg:flex">
         <button
           type="button"
           aria-label="開啟選單"
