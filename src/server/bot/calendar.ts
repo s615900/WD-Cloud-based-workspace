@@ -47,6 +47,13 @@ function calendarApi() {
   return { calendar: google.calendar({ version: "v3", auth: makeAuth() }), calendarId };
 }
 
+// 手動放在 Google 上、不要跟工作台同步的事件（例如把多天賽事合成一個跨天事件）：
+// 事件的「私人擴充屬性」wdNoSync=1。同步程式看到就略過，不匯回工作台、也不拿來取消任何行程。
+export const NO_SYNC_PROP = "wdNoSync";
+export function isNoSyncEvent(ev: calendar_v3.Schema$Event): boolean {
+  return ev.extendedProperties?.private?.[NO_SYNC_PROP] === "1";
+}
+
 // Google 回 404（沒這筆）或 410（已永久刪除）
 function isGone(err: unknown): boolean {
   const e = err as { code?: unknown; status?: unknown; response?: { status?: unknown } };

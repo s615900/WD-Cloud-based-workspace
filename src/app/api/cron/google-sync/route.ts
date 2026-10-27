@@ -11,10 +11,11 @@
 // 測試用參數：?dryRun=1 只回傳會做什麼、不寫入。
 import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
-import { calendarConfigured, eventToItem, getGoogleEvent, listGoogleEvents, type CalendarItem } from "@/server/bot/calendar";
+import { calendarConfigured, eventToItem, getGoogleEvent, isNoSyncEvent, listGoogleEvents, type CalendarItem } from "@/server/bot/calendar";
 import {
   createSchedule,
   gcalFieldConfigured,
+  isRaceEntry,
   listAllSchedule,
   pushEntryToGoogle,
   updateSchedule,
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest) {
 
     // 1)(2) 以 Google 為準處理新增與修改
     for (const ev of googleEvents) {
-      if (!ev.id || ev.recurringEventId) continue;
+      if (!ev.id || ev.recurringEventId || isNoSyncEvent(ev)) continue; // 標了 wdNoSync 的事件（賽事的跨天事件）不同步
       const item = eventToItem(ev);
       if (!item) continue;
       seenGcalIds.add(ev.id);
@@ -134,6 +135,7 @@ export async function GET(req: NextRequest) {
 
     // 3)(4) 以行程為準：還在窗口內、這輪沒在 Google 列表裡出現的行程
     for (const e of entries) {
+      if (isRaceEntry(e)) continue; // 拍攝賽事不逐日同步到 Google，也不因為 Google 上沒有而取消
       if (e.date < firstDay || e.date > lastDay) continue;
       if (e.gcalId && seenGcalIds.has(e.gcalId)) continue;
       const label = `${e.date} ${e.start} ${e.title}`;

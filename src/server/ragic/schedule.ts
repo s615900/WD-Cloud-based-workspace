@@ -143,8 +143,14 @@ function buildScheduleFields(input: CreateScheduleInput): Record<string, string>
 
 // 只有「個人行程」會同步到 Google 日曆（班別、客戶預約不同步）。
 // Google 同步失敗只記錄、不影響 Ragic 已寫入的行程；下次排程同步（/api/cron/google-sync）會補上。
-function syncsToGoogle(kind: ScheduleKind): boolean {
-  return kind === "個人行程" && calendarConfigured();
+function syncsToGoogle(kind: ScheduleKind, templateCode = ""): boolean {
+  // 帶班別模板的個人行程是「拍攝賽事」：多天賽事在 Google 上另外用一個跨天事件表示（見 NO_SYNC_PROP），不逐日同步
+  return kind === "個人行程" && !templateCode && calendarConfigured();
+}
+
+// 行程是不是拍攝賽事（個人行程＋帶班別模板），Google 同步程式用它跳過這些行程
+export function isRaceEntry(e: Pick<ScheduleEntry, "kind" | "templateCode">): boolean {
+  return e.kind === "個人行程" && e.templateCode !== "";
 }
 
 function toCalendarItem(e: ScheduleEntry) {
@@ -154,7 +160,7 @@ function toCalendarItem(e: ScheduleEntry) {
 // 把一筆行程的目前狀態推到 Google：取消 → 刪事件；其他 → 更新（沒有或已不存在就新增）。
 // 新增出來的事件 ID 會寫回 Ragic。
 export async function pushEntryToGoogle(entry: ScheduleEntry): Promise<void> {
-  if (!syncsToGoogle(entry.kind)) return;
+  if (!syncsToGoogle(entry.kind, entry.templateCode)) return;
   if (entry.status === "取消") {
     if (entry.gcalId) await deleteGoogleEvent(entry.gcalId);
     return;
@@ -168,7 +174,7 @@ export async function pushEntryToGoogle(entry: ScheduleEntry): Promise<void> {
 
 export async function createSchedule(input: CreateScheduleInput, opts: WriteOptions = {}): Promise<number> {
   const id = await ragicCreate("schedule", buildScheduleFields(input));
-  if (!opts.skipGoogle && !input.gcalId && input.status !== "取消" && syncsToGoogle(input.kind)) {
+  if (!opts.skipGoogle && !input.gcalId && input.status !== "取消" && syncsToGoogle(input.kind, input.templateCode ?? "")) {
     try {
       const gcalId = await createGoogleEvent({
         date: input.date,
