@@ -36,6 +36,8 @@ export async function GET() {
   return Response.json({
     loggedIn: !!user,
     userId: user?.sub ?? null,
+    via: user?.via ?? "line",
+    email: user?.email ?? null,
     connections,
     businessModuleLocks: BUSINESS_MODULE_LOCKS,
   });

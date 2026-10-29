@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
     step = "issue_session";
     const res = NextResponse.redirect(publicUrl("/", request));
     res.cookies.delete(GOOGLE_STATE_COOKIE);
-    res.cookies.set(SESSION_COOKIE, createSessionCookieValue(getEnv("ALLOWED_LINE_USER_ID")), {
+    res.cookies.set(SESSION_COOKIE, createSessionCookieValue(getEnv("ALLOWED_LINE_USER_ID"), { via: "google", email: info.email }), {
       httpOnly: true,
       secure: secureCookie,
       sameSite: "lax",

@@ -8,6 +8,8 @@ import { PushCard } from "./PushCard";
 
 interface DesktopSettings {
   userId: string | null;
+  via: "line" | "google";
+  email: string | null;
   connections: { key: string; label: string; status: "connected" | "not_configured" }[];
 }
 
@@ -34,7 +36,7 @@ export function SettingsView() {
         {data ? (
           <div className="flex items-center justify-between gap-3">
             <span>
-              <span className="badge badge-teal">已登入</span> LINE User ID: {data.userId ?? ""}
+              <span className="badge badge-teal">已登入</span> {data.via === "google" ? `Google 登入：${data.email ?? ""}` : `LINE User ID: ${data.userId ?? ""}`}
             </span>
             {/* 登出是 Route Handler（會清 cookie 再轉址），用一般 <a> 而不是 <Link> */}
             <a className="btn btn-outline" href="/auth/logout">

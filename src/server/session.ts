@@ -9,6 +9,9 @@ export const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 天
 export interface SessionPayload {
   sub: string;
   iat: number;
+  // 登入方式與 Google 信箱，只用來在設定頁顯示；舊 cookie 沒有這兩欄，視為 LINE 登入。
+  via?: "line" | "google";
+  email?: string;
 }
 
 function secret(): string {
@@ -31,8 +34,8 @@ function unsign(signed: string): string | null {
   return value;
 }
 
-export function createSessionCookieValue(sub: string): string {
-  const payload: SessionPayload = { sub, iat: Date.now() };
+export function createSessionCookieValue(sub: string, extra?: { via: "google"; email: string }): string {
+  const payload: SessionPayload = { sub, iat: Date.now(), ...extra };
   const value = JSON.stringify(payload);
   return `s:${value}.${hmac(value)}`;
 }
@@ -47,7 +50,12 @@ export function readSession(raw: string | undefined): SessionPayload | null {
     const parsed = JSON.parse(value) as Partial<SessionPayload>;
     if (typeof parsed.sub !== "string" || typeof parsed.iat !== "number") return null;
     if (Date.now() - parsed.iat > SESSION_MAX_AGE_MS) return null;
-    return { sub: parsed.sub, iat: parsed.iat };
+    return {
+      sub: parsed.sub,
+      iat: parsed.iat,
+      via: parsed.via === "google" ? "google" : "line",
+      email: typeof parsed.email === "string" ? parsed.email : undefined,
+    };
   } catch {
     return null;
   }
@@ -61,10 +69,12 @@ export function isAuthBypassed(): boolean {
 
 // 每次都重新比對 ALLOWED_LINE_USER_ID（不是只在登入當下判斷一次），
 // 這樣如果之後把這個環境變數改掉，舊 session 會立刻失效，不用等 30 天到期。
-export function getAuthorizedUser(raw: string | undefined): { sub: string } | null {
+export function getAuthorizedUser(
+  raw: string | undefined,
+): { sub: string; via?: "line" | "google"; email?: string } | null {
   if (isAuthBypassed()) return { sub: process.env["ALLOWED_LINE_USER_ID"] || "dev-bypass" };
   const session = readSession(raw);
   const allowedUserId = process.env["ALLOWED_LINE_USER_ID"];
   if (!session || !allowedUserId || session.sub !== allowedUserId) return null;
-  return { sub: session.sub };
+  return { sub: session.sub, via: session.via, email: session.email };
 }
