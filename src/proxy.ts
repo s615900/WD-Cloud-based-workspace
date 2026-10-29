@@ -11,7 +11,7 @@ export function proxy(request: NextRequest) {
 
   const accept = request.headers.get("accept") ?? "";
   if (accept.includes("text/html")) {
-    return NextResponse.redirect(publicUrl("/auth/login", request));
+    return NextResponse.redirect(publicUrl("/login", request));
   }
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 }

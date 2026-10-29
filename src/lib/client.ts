@@ -5,9 +5,9 @@
 export async function apiFetch<T = unknown>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, options);
   if (res.status === 401) {
-    // /auth/login 是 Route Handler（會轉去 LINE Login），要整頁跳轉，不能用 router.push
+    // /login 是選擇登入方式的頁面，要整頁跳轉，不能用 router.push
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = "/auth/login";
+    window.location.href = "/login";
     throw new Error("未登入，導向登入頁");
   }
   let data: unknown = null;
