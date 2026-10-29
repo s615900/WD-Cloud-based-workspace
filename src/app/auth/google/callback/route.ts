@@ -34,8 +34,9 @@ export async function GET(request: NextRequest) {
       }).toString(),
     });
     if (!tokenRes.ok) {
-      console.error(`Google Login 換取 token 失敗 [step=${step}]:`, tokenRes.status, await tokenRes.text());
-      return text("登入失敗，請稍後再試。", 502);
+      const detail = await tokenRes.text();
+      console.error(`Google Login 換取 token 失敗 [step=${step}]:`, tokenRes.status, detail);
+      return text(`登入失敗，請稍後再試。\n[${step}] ${tokenRes.status} ${detail.slice(0, 300)}`, 502);
     }
     const { id_token } = (await tokenRes.json()) as { id_token?: string };
     if (!id_token) return text("登入失敗，請稍後再試。", 502);
@@ -44,13 +45,14 @@ export async function GET(request: NextRequest) {
     step = "verify_id_token";
     const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(id_token)}`);
     if (!verifyRes.ok) {
-      console.error(`Google Login 驗證 id_token 失敗 [step=${step}]:`, verifyRes.status, await verifyRes.text());
-      return text("登入失敗，請稍後再試。", 502);
+      const detail = await verifyRes.text();
+      console.error(`Google Login 驗證 id_token 失敗 [step=${step}]:`, verifyRes.status, detail);
+      return text(`登入失敗，請稍後再試。\n[${step}] ${verifyRes.status} ${detail.slice(0, 300)}`, 502);
     }
     const info = (await verifyRes.json()) as { aud?: string; email?: string; email_verified?: string | boolean };
     const verified = info.email_verified === true || info.email_verified === "true";
     if (info.aud !== getEnv("GOOGLE_LOGIN_CLIENT_ID") || !verified || !info.email) {
-      return text("登入失敗，請稍後再試。", 403);
+      return text(`登入失敗，請稍後再試。\n[${step}] aud 不符或信箱未驗證`, 403);
     }
 
     step = "check_allowed_email";
@@ -76,6 +78,6 @@ export async function GET(request: NextRequest) {
     return res;
   } catch (err) {
     console.error(`Google Login callback 發生錯誤 [step=${step}]:`, err);
-    return text("登入失敗，請稍後再試。", 500);
+    return text(`登入失敗，請稍後再試。\n[${step}] ${err instanceof Error ? err.message : String(err)}`, 500);
   }
 }
