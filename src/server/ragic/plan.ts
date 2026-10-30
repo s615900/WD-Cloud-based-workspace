@@ -25,8 +25,13 @@ function toPlanEntry(id: string, r: RagicRecordData): PlanEntry {
   };
 }
 
-export async function listPlan(opts?: { fresh?: boolean }): Promise<PlanEntry[]> {
-  const data = await ragicList("plan", "subtables=0", opts);
+// from／to（yyyy-MM-dd，含頭尾）有給就請 Ragic 只回這段日期的班，資料量小、回應快；沒給＝整張表。
+export async function listPlan(opts?: { fresh?: boolean; from?: string; to?: string }): Promise<PlanEntry[]> {
+  const where = (op: "gte" | "lte", date: string) => `where=${F_PLAN.date},${op},${date.replace(/-/g, "/")}`;
+  const query = ["subtables=0", opts?.from && where("gte", opts.from), opts?.to && where("lte", opts.to)]
+    .filter(Boolean)
+    .join("&");
+  const data = await ragicList("plan", query, { fresh: opts?.fresh });
   return Object.entries(data)
     .map(([id, r]) => toPlanEntry(id, r))
     .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));

@@ -17,7 +17,9 @@ export async function GET(req: NextRequest) {
   if (to !== null && !DATE_RE.test(to)) return json({ error: "to 格式須為 yyyy-MM-dd" }, 400);
 
   try {
-    const entries = await listAllSchedule();
+    // 有日期條件就只向 Ragic 要那段日期（date 等於 from＝to 同一天）；只有 batchId 時才需要整張表。
+    const range = date ? { from: date, to: date } : { from: from ?? undefined, to: to ?? undefined };
+    const entries = await listAllSchedule(range);
     return json(
       filterAndSortSchedule(entries, {
         date: date ?? undefined,

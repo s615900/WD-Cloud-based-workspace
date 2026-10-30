@@ -15,7 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/desktop/calendar", label: "行事曆" },
   { href: "/desktop/timeline", label: "時間線" },
   { href: "/desktop/tasks", label: "待辦事項" },
-  { href: "/desktop/hr-finance", label: "人事財務表" },
+  { href: "/desktop/hr-finance", label: "人事" },
   { href: "/desktop/finance", label: "財務" },
   { href: "/desktop/sites", label: "網站管理" },
   {

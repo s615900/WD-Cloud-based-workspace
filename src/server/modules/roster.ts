@@ -124,7 +124,7 @@ export function filterAndSortSchedule(
 }
 
 export async function getScheduleForDate(date: string): Promise<ScheduleEntry[]> {
-  const entries = await listAllSchedule();
+  const entries = await listAllSchedule({ from: date, to: date });
   return filterAndSortSchedule(entries, { date });
 }
 
@@ -134,7 +134,7 @@ export async function getFreeSlotsForDate(date: string): Promise<FreeSlot[] | nu
   if (!config) return null;
 
   const yesterday = addDays(date, -1);
-  const all = await listAllSchedule();
+  const all = await listAllSchedule({ from: yesterday, to: date });
   const today = all.filter((e) => e.date === date).map(toFreeSlotEntry);
   const prev = all.filter((e) => e.date === yesterday).map(toFreeSlotEntry);
 

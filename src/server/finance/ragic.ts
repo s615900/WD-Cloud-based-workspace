@@ -39,7 +39,8 @@ function toForm(fields: WriteFields): string {
 // 所以讀取結果在記憶體裡短暫快取（TTL 很短），同一時間相同的讀取只送一次；
 // 任何寫入都會清掉該張表的快取。會「寫入」的流程（POST／PATCH／DELETE、每日引擎）一律用 withFresh
 // 包起來繞過快取，確保驗證、來源鍵防重複、流水號都是讀到最新資料。
-const READ_TTL_MS = 20_000;
+// 只留 2 秒：記憶體這層不會被其他實例的寫入清掉，主要的 30 秒快取在下面跨實例共用的那層
+const READ_TTL_MS = 2_000;
 const readCache = new Map<string, { at: number; promise: Promise<FinanceRow[]> }>();
 const freshScope = new AsyncLocalStorage<boolean>();
 

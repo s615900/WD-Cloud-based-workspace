@@ -69,14 +69,21 @@ export function PlanView() {
   }, [version]);
 
   useEffect(() => {
-    apiFetch<{ entries: PlanEntry[]; templatePay: boolean; doublePay: boolean }>("/api/plan").then(
+    // 只讀這個月前後用得到的範圍：月曆補在空白格的相鄰日期、20 日結算的「上月 21 日～本月 20 日」
+    const from = `${addMonths(month, -1)}-15`;
+    const to = `${addMonths(month, 1)}-10`;
+    apiFetch<{ entries: PlanEntry[]; templatePay: boolean; doublePay: boolean }>(`/api/plan?from=${from}&to=${to}`).then(
       (data) => setLoad({ status: "ok", ...data }),
       (err) => {
         const message = errorText(err);
         setLoad(message.includes("尚未設定") ? { status: "notConfigured" } : { status: "error", message });
       },
     );
-  }, [version]);
+  }, [version, month]);
+
+  // 刪除／改雙倍後直接改畫面上的資料，不必重讀；Ragic 已經寫入，畫面不用等再讀一次
+  const patchEntries = (fn: (entries: PlanEntry[]) => PlanEntry[]) =>
+    setLoad((cur) => (cur.status === "ok" ? { ...cur, entries: fn(cur.entries) } : cur));
 
   const settle20 = new Set(templates.filter((t) => t.settleDay === 20).map((t) => t.name));
   // 班別篩選（迪卡儂／駿斯）：月曆、當日班表、薪資彙總與匯入行事曆都用同一個篩選
@@ -160,7 +167,7 @@ export function PlanView() {
   async function toggleDouble(entry: PlanEntry) {
     try {
       await sendJson(`/api/plan/${entry.id}`, "PATCH", { double: !entry.double });
-      refresh();
+      patchEntries((list) => list.map((e) => (e.id === entry.id ? { ...e, double: !entry.double } : e)));
     } catch (err) {
       setNotice(errorText(err, "更新失敗"));
     }
@@ -170,7 +177,7 @@ export function PlanView() {
     if (!confirm(`刪除 ${entry.date} 的「${entry.name}」？`)) return;
     try {
       await apiFetch(`/api/plan/${entry.id}`, { method: "DELETE" });
-      refresh();
+      patchEntries((list) => list.filter((e) => e.id !== entry.id));
     } catch (err) {
       setNotice(errorText(err, "刪除失敗"));
     }

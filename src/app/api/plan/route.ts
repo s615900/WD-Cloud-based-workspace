@@ -15,8 +15,15 @@ export async function GET(req: NextRequest) {
   if (blocked) return blocked;
   const month = req.nextUrl.searchParams.get("month");
   if (month !== null && !/^\d{4}-\d{2}$/.test(month)) return json({ error: "month 格式須為 yyyy-MM" }, 400);
+  // 只給 month 時（首頁、時間線）也換成該月的日期範圍，不必讀整張表
+  const from = req.nextUrl.searchParams.get("from") ?? (month ? `${month}-01` : null);
+  const to = req.nextUrl.searchParams.get("to") ?? (month ? `${month}-31` : null);
+  if ((from !== null && !DATE_RE.test(from)) || (to !== null && !DATE_RE.test(to))) {
+    return json({ error: "from／to 格式須為 yyyy-MM-dd" }, 400);
+  }
   try {
-    const all = await listPlan();
+    // 走跨實例共用快取（15 秒），任何寫入都會立刻清掉，不會讀到別台實例的舊資料
+    const all = await listPlan({ from: from ?? undefined, to: to ?? undefined });
     return json({
       entries: month ? all.filter((e) => e.date.startsWith(month)) : all,
       templatePay: templatePayConfigured(),

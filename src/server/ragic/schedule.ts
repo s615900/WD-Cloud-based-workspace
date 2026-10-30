@@ -84,8 +84,14 @@ function toScheduleEntry(id: string, r: RagicRecordData): ScheduleEntry {
 // （個人使用情境），不需要另外做分頁查詢。
 //
 // 讀取有短暫快取；排程／寫入前要讀最新資料的呼叫端傳 { fresh: true }。
-export async function listAllSchedule(opts?: { fresh?: boolean }): Promise<ScheduleEntry[]> {
-  const data = await ragicList("schedule", "subtables=0", opts);
+//
+// from／to（yyyy-MM-dd，含頭尾）有給就請 Ragic 只回這段日期的行程，資料量小、回應快；沒給＝整張表。
+export async function listAllSchedule(opts?: { fresh?: boolean; from?: string; to?: string }): Promise<ScheduleEntry[]> {
+  const where = (op: "gte" | "lte", date: string) => `where=${F_SCHEDULE.date},${op},${date.replace(/-/g, "/")}`;
+  const query = ["subtables=0", opts?.from && where("gte", opts.from), opts?.to && where("lte", opts.to)]
+    .filter(Boolean)
+    .join("&");
+  const data = await ragicList("schedule", query, { fresh: opts?.fresh });
   return Object.entries(data).map(([id, r]) => toScheduleEntry(id, r));
 }
 
